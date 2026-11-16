@@ -1,3 +1,9 @@
 notes/
 CLAUDE.md
 .Rproj.user
+
+# keep data out of the public repo
+data/*
+!data/.gitkeep
+output/*
+!output/.gitkeep
