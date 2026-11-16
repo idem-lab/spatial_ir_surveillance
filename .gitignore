@@ -7,3 +7,6 @@ data/*
 !data/.gitkeep
 output/*
 !output/.gitkeep
+
+#ipynb checkpoints begone
+./ipynb_checkpoints
