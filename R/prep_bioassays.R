@@ -3,35 +3,13 @@
 # ir_cube repo: https://github.com/idem-lab/ir_cube, with a pixel ID and an
 # admin-2 district for each.
 # 
-# Inputs from ir_cube.
-# The data files are not in the repo, so we copy them here (gitignored) and
-# record the ir_cube commit that made them, and their md5 sums. This script
-# stops if a file's checksum differs from the stated checksums, so that everyone
-# runs the analysis on the same data. If a change to ir_cube changes the data
-# and it's copied in, it can't slip in unnoticed. To update the data
-# deliberately, update the commit and checksums here:
-#
-#   data/ir_cube/all_gambiae_complex_data.RDS: the cleaned bioassays, made by
-#     ir_cube's R/prep_bioassays.R (not this script, with the same name)
-#   data/ir_cube/raster_mask.tif: the 0.0417 degree (about 5 km) grid of
-#     pixels used by ir_cube, made by ir_cube's R/prep_rasters.R
-#
-# If these files are not in data/ir_cube/, the script copies them from a local
-# clone of ir_cube at ir_cube_dir on Nick's machine. If you need these files,
-# ask Nick to share them and put them in data/ir_cube/ yourself. Admin
-# boundaries are downloaded from GADM 4.1 to data/gadm/.
-#
+# Inputs (R/get_data.R): data/ir_cube/all_gambiae_complex_data.RDS (the
+#   cleaned bioassays, made by ir_cube's R/prep_bioassays.R, not this script
+#   with the same name) and data/ir_cube/raster_mask.tif. Admin boundaries are
+#   downloaded from GADM 4.1 to data/gadm/.
 # Output: data/bioassays.RDS
 
 source("R/packages.R")
-
-# ir_cube commit whose data prep made the copied files (idem-lab/ir_cube)
-ir_cube_commit <- "2e7e4a62a35bc8905b9213f5e7384849b251cb9f"
-ir_cube_dir <- "~/Dropbox/github/ir_cube"
-ir_cube_files <- c(
-  all_gambiae_complex_data.RDS = "44772bd1da61751c30d7e6e1f020eaf7",
-  raster_mask.tif = "54e89d34918b62c0296cfec92c890585"
-)
 
 # WHO discriminating concentrations (%) of the pyrethroids ir_cube models.
 # These are also the most common concentration of each in the data, which is
@@ -45,24 +23,6 @@ discriminating_concentrations <- c(
 
 # ir_cube drops bioassays before this year
 baseline_year <- 1995
-
-# copy the ir_cube files, if needed, and check they match the recorded ones
-dir.create("data/ir_cube", showWarnings = FALSE, recursive = TRUE)
-for (file in names(ir_cube_files)) {
-  local_file <- file.path("data/ir_cube", file)
-  if (!file.exists(local_file)) {
-    source_file <- file.path(ir_cube_dir, "data/clean", file)
-    if (!file.exists(source_file)) {
-      stop(local_file, " is missing and there is no ir_cube clone at ",
-           ir_cube_dir, ". Ask Nick for the file and put it in data/ir_cube/")
-    }
-    file.copy(source_file, local_file)
-  }
-  if (tools::md5sum(local_file) != ir_cube_files[[file]]) {
-    stop(local_file, " does not match the file from ir_cube commit ",
-         ir_cube_commit)
-  }
-}
 
 mask <- terra::rast("data/ir_cube/raster_mask.tif")
 
