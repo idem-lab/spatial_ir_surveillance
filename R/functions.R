@@ -18,10 +18,13 @@ genotypes <- data.frame(
 
 # ==== kdr predictor (R/fit_kdr_predictor.R) ====
 
-# bioassay intra-class correlation of mortality by insecticide, from ir_cube's
-# data/clean/bioassay_rho_replicate.csv (made by
-# R/fig_illustrate_bioassay_variability.R)
-rho <- c("Deltamethrin" = 0.1546, "Permethrin" = 0.1766)
+# bioassay intra-class correlation of mortality by insecticide: the posterior
+# means in ir_cube's outputs/bioassay_rho_hierarchical.csv (untracked; from its
+# final run of 30 Oct 2026 on the deduplicated bioassays our data come from),
+# made by R/fig_illustrate_bioassay_variability.R, which fits rho
+# hierarchically to all replicate bioassays in a pixel, year and insecticide.
+# ir_cube's two-stage model uses the same values
+rho <- c("Deltamethrin" = 0.1492, "Permethrin" = 0.1401)
 
 # beta-binomial precision of bioassays with each insecticide
 bioassay_phi <- function(insecticide) {
