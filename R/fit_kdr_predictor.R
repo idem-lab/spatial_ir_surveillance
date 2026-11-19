@@ -1,6 +1,6 @@
 # Fit the kdr predictor of pyrethroid bioassay mortality: survival without kdr
 # (alpha), the effect of each kdr allele (beta), both for each insecticide,
-# and how much each varies between populations (sigma_alpha, tau). The model
+# and how much each varies between populations (sigma_u, sigma_b). The model
 # (build_model()) has three likelihoods:
 #   - bioassays, whose logit survival is linear in the population's mean
 #     number of kdr alleles, 2f, where f is its kdr frequency
@@ -20,7 +20,7 @@
 #   output/kdr_predictor_checks.csv and figures/kdr_predictor_checks.png
 #   (posterior predictive checks),
 #   output/kdr_predictor_fit.RDS (the posterior draws, with the greta arrays
-#   of expected survival s and the pixel-years' u, b and f, for
+#   of expected survival and the pixel-years' u, b and f, for
 #   greta::calculate()), output/kdr_predictor_bioassays.RDS (the bioassays)
 
 source("R/packages.R")
@@ -77,17 +77,19 @@ draws <- greta::mcmc(built$model, sampler = sampler, n_samples = n_samples,
 
 # checks within each band of kdr frequency and insecticide, from
 # n_check_draws posterior draws of each bioassay's expected survival
-s_draws <- as.matrix(greta::calculate(built$s, values = draws))
-s_draws <- s_draws[sample.int(nrow(s_draws), n_check_draws), ]
+survival_draws <- as.matrix(greta::calculate(built$survival, values = draws))
+survival_draws <- survival_draws[sample.int(nrow(survival_draws),
+                                            n_check_draws), ]
 checks <- posterior_predictive_check(
-  s_draws, selected,
+  survival_draws, selected,
   paste(selected$selection, selected$insecticide_type, sep = ": ")
 )
 
 write.csv(summarise_draws(draws, built$insecticides),
           "output/kdr_predictor_estimates.csv", row.names = FALSE)
 write.csv(checks, "output/kdr_predictor_checks.csv", row.names = FALSE)
-saveRDS(c(list(draws = draws, s = built$s, pixel_years = built$pixel_years),
+saveRDS(c(list(draws = draws, survival = built$survival,
+            pixel_years = built$pixel_years),
           built$latents),
         "output/kdr_predictor_fit.RDS")
 saveRDS(selected, "output/kdr_predictor_bioassays.RDS")
