@@ -26,9 +26,12 @@ genotypes <- data.frame(
 # ir_cube's two-stage model uses the same values
 rho <- c("Deltamethrin" = 0.1492, "Permethrin" = 0.1401)
 
-# beta-binomial precision of bioassays with each insecticide
-bioassay_phi <- function(insecticide) {
-  unname((1 - rho[insecticide]) / rho[insecticide])
+# beta-binomial distribution in greta with mean p and intra-class correlation
+# rho (ir_cube's, from its R/functions.R)
+betabinomial_p_rho <- function(N, p, rho) {
+  a <- p * (1 / rho - 1)
+  b <- a * (1 - p) / p
+  greta::beta_binomial(size = N, alpha = a, beta = b)
 }
 
 # pyrethroids as spelled in the IR Mapper survivor/dead file, and as in the
@@ -77,7 +80,7 @@ select_kdr_sampled <- function(bioassays, links) {
 
 # genotype counts of survivors and dead in IR Mapper's survivor/dead pairs
 # tested with deltamethrin or permethrin, other than An. arabiensis: one row
-# per pair and number of kdr alleles g, with the numbers of survivors and dead
+# per pair and number of kdr alleles a, with the numbers of survivors and dead
 # genotyped. Where a row gives genotype percentages but no counts, counts are
 # the percentages times the number genotyped
 read_pair_genotypes <- function(file) {
@@ -103,23 +106,23 @@ read_pair_genotypes <- function(file) {
     subset = rows[["Subset of susceptibility tests"]],
     species = tolower(rows[["Anophelines tested"]]),
     insecticide = tolower(rows[["Insecticide tested"]]),
-    g = rep(0:2, each = nrow(rows)),
-    n = c(sapply(0:2, function(g) {
-      rowSums(counts[, genotypes$kdr_alleles == g, drop = FALSE])
+    a = rep(0:2, each = nrow(rows)),
+    n = c(sapply(0:2, function(a) {
+      rowSums(counts[, genotypes$kdr_alleles == a, drop = FALSE])
     }))
   ) |>
     dplyr::filter(insecticide %in% names(pair_pyrethroids),
                   !grepl("arabiensis", species)) |>
     dplyr::mutate(insecticide = unname(pair_pyrethroids[insecticide]))
-  stopifnot(!anyDuplicated(long[, c("pair", "subset", "g")]))
+  stopifnot(!anyDuplicated(long[, c("pair", "subset", "a")]))
 
   survivors <- long |>
     dplyr::filter(subset == "survivors") |>
-    dplyr::select(pair, insecticide, g, survivors = n)
+    dplyr::select(pair, insecticide, a, survivors = n)
   dead <- long |>
     dplyr::filter(subset == "dead") |>
-    dplyr::select(pair, g, dead = n)
-  dplyr::inner_join(survivors, dead, by = dplyr::join_by(pair, g)) |>
+    dplyr::select(pair, a, dead = n)
+  dplyr::inner_join(survivors, dead, by = dplyr::join_by(pair, a)) |>
     # pairs with mosquitoes of only one genotype, or with no survivors or no
     # dead, carry no information about the kdr effect
     dplyr::group_by(pair) |>
@@ -133,72 +136,75 @@ read_pair_genotypes <- function(file) {
 
 # greta model, from the selected bioassays, their kdr samples (from
 # find_same_pixel_samples()) and the survivor/dead pairs (from
-# read_pair_genotypes()). Returns the model; the greta array of each
-# bioassay's expected survival, s (for posterior predictive checks); the
-# insecticides, in the order of alpha and beta; and the greta arrays of each
-# pixel-year's latent variables, u, b and f, with the pixel-years in their
-# order
+# read_pair_genotypes()). For bioassay i of insecticide j in pixel-year
+# (l, t), with kdr frequency f:
+#   logit(1 - pi_i) = alpha_j + u_lt + 2 f_lt (beta_j + b_lt)
+# Returns the model; the greta array of each bioassay's expected survival,
+# 1 - pi_i (for posterior predictive checks); the insecticides, in the order
+# of alpha and beta; and the greta arrays of each pixel-year's latent
+# variables, u, b and f, with the pixel-years in their order
 build_model <- function(bioassays, samples, pairs) {
   # ---- indices ----
   pixel_years <- unique(bioassays$pixel_year)
-  k_i <- match(bioassays$pixel_year, pixel_years)
+  lt_i <- match(bioassays$pixel_year, pixel_years)
   insecticides <- sort(unique(bioassays$insecticide_type))
-  t_i <- match(bioassays$insecticide_type, insecticides)
+  j_i <- match(bioassays$insecticide_type, insecticides)
   # the pairs inform the kdr effects of the bioassays' insecticides
   stopifnot(all(pairs$insecticide %in% insecticides))
-  phi_i <- bioassay_phi(bioassays$insecticide_type)
-  stopifnot(!anyNA(phi_i))
-  n_k <- length(pixel_years)
+  rho_i <- unname(rho[bioassays$insecticide_type])
+  stopifnot(!anyNA(rho_i))
+  n_lt <- length(pixel_years)
 
   # ---- priors ----
   alpha <- greta::normal(0, 3, dim = length(insecticides))
   # kdr effect for each insecticide
   beta <- greta::normal(0, 1, dim = length(insecticides))
-  sigma_alpha <- greta::normal(0, 1, truncation = c(0, Inf))
-  tau <- greta::normal(0, 1, truncation = c(0, Inf))
+  sigma_u <- greta::normal(0, 1, truncation = c(0, Inf))
+  sigma_b <- greta::normal(0, 1, truncation = c(0, Inf))
 
   # ---- kdr frequency ----
-  f <- greta::beta(1, 1, dim = n_k)
-  # kdr alleles in each sample: beta-binomial around the pixel-year's
-  # frequency, with intra-class correlation rho_kdr (uniform prior)
+  f <- greta::beta(1, 1, dim = n_lt)
+  # kdr alleles A_k in each sample k of M_k mosquitoes: beta-binomial around
+  # its pixel-year's frequency, with intra-class correlation rho_kdr (uniform
+  # prior)
   rho_kdr <- greta::beta(1, 1)
-  phi_kdr <- (1 - rho_kdr) / rho_kdr
-  k_l <- match(samples$pixel_year, pixel_years)
-  stopifnot(!anyNA(k_l))
-  f_l <- f[k_l]
+  lt_k <- match(samples$pixel_year, pixel_years)
+  stopifnot(!anyNA(lt_k))
+  f_k <- f[lt_k]
   alleles <- 2 * samples$n_tested
   kdr_alleles <- greta::as_data(round(alleles * samples$kdr_frequency))
-  greta::distribution(kdr_alleles) <- greta::beta_binomial(
-    alleles, f_l * phi_kdr, (1 - f_l) * phi_kdr
-  )
+  greta::distribution(kdr_alleles) <- betabinomial_p_rho(alleles, f_k,
+                                                         rho_kdr)
 
   # ---- bioassays ----
   # logit survival is linear in the mean number of kdr alleles, 2f
-  u <- sigma_alpha * greta::normal(0, 1, dim = n_k)
-  b <- tau * greta::normal(0, 1, dim = n_k)
-  s <- greta::ilogit(alpha[t_i] + u[k_i] + 2 * f[k_i] * (beta[t_i] + b[k_i]))
-  died <- greta::as_data(bioassays$died)
-  greta::distribution(died) <- greta::beta_binomial(
-    bioassays$mosquito_number, (1 - s) * phi_i, s * phi_i
+  u <- sigma_u * greta::normal(0, 1, dim = n_lt)
+  b <- sigma_b * greta::normal(0, 1, dim = n_lt)
+  survival <- greta::ilogit(
+    alpha[j_i] + u[lt_i] + 2 * f[lt_i] * (beta[j_i] + b[lt_i])
   )
+  died <- greta::as_data(bioassays$died)
+  greta::distribution(died) <- betabinomial_p_rho(bioassays$mosquito_number,
+                                                  1 - survival, rho_i)
 
   # ---- survivor/dead pairs ----
+  # genotyped survivors L of L + D with a kdr alleles in pair h: binomial with
+  # logit(theta_ha) = gamma_h + (beta_j + b'_h) a, where gamma_h is a nuisance
+  # intercept and b'_h the pair's deviation in the kdr effect
   pair_ids <- unique(pairs$pair)
-  j <- match(pairs$pair, pair_ids)
-  t_j <- match(pairs$insecticide, insecticides)
-  eta <- greta::normal(0, 3, dim = length(pair_ids))
-  b_pair <- tau * greta::normal(0, 1, dim = length(pair_ids))
+  h <- match(pairs$pair, pair_ids)
+  j_h <- match(pairs$insecticide, insecticides)
+  gamma <- greta::normal(0, 3, dim = length(pair_ids))
+  b_pair <- sigma_b * greta::normal(0, 1, dim = length(pair_ids))
   # probability that a genotyped mosquito is a survivor
-  p_survivor <- greta::ilogit(
-    eta[j] + (beta[t_j] + b_pair[j]) * pairs$g
-  )
+  theta <- greta::ilogit(gamma[h] + (beta[j_h] + b_pair[h]) * pairs$a)
   survivors <- greta::as_data(pairs$survivors)
   greta::distribution(survivors) <- greta::binomial(
-    pairs$survivors + pairs$dead, p_survivor
+    pairs$survivors + pairs$dead, theta
   )
 
-  list(model = greta::model(alpha, beta, sigma_alpha, tau, rho_kdr),
-       s = s, insecticides = insecticides,
+  list(model = greta::model(alpha, beta, sigma_u, sigma_b, rho_kdr),
+       survival = survival, insecticides = insecticides,
        latents = list(u = u, b = b, f = f),
        pixel_years = pixel_years)
 }
@@ -269,20 +275,22 @@ two_sided_p_within <- function(x) {
 }
 
 # posterior predictive checks: simulate each bioassay's deaths from posterior
-# draws of its expected survival (s_draws: draws by bioassays), and compare
-# summaries of simulated and observed mortality within each group of
+# draws of its expected survival (survival_draws: draws by bioassays), and
+# compare summaries of simulated and observed mortality within each group of
 # bioassays, with the central 95% of the simulated summaries and a two-sided
 # posterior predictive p-value. A check fails if its p-value is below
 # min_p_threshold, the Westfall-Young min-p threshold for a 5% family-wise
 # error rate across all the checks: the 5th percentile of the smallest
 # p-value across the checks of each simulated dataset, which allows for the
 # checks being correlated
-posterior_predictive_check <- function(s_draws, bioassays, group) {
-  phi_i <- bioassay_phi(bioassays$insecticide_type)
+posterior_predictive_check <- function(survival_draws, bioassays, group) {
+  # beta shapes a and b sum to 1 / rho - 1, as in betabinomial_p_rho()
+  phi_i <- 1 / unname(rho[bioassays$insecticide_type]) - 1
   n_i <- bioassays$mosquito_number
-  simulated <- apply(s_draws, 1, function(s) {
-    p_dead <- rbeta(length(s), (1 - s) * phi_i, s * phi_i)
-    rbinom(length(s), n_i, p_dead) / n_i
+  simulated <- apply(survival_draws, 1, function(survival) {
+    p_dead <- rbeta(length(survival), (1 - survival) * phi_i,
+                    survival * phi_i)
+    rbinom(length(survival), n_i, p_dead) / n_i
   })
   observed <- bioassays$died / n_i
   groups <- split(seq_len(nrow(bioassays)), group)
