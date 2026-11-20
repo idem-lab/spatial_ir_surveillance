@@ -31,8 +31,9 @@ changes. Then run the scripts from the project root, in this order:
 3. `R/prep_kdr_samples.R`: kdr allele frequencies in genotyped samples.
 4. `R/fit_kdr_predictor.R`: a Bayesian model (fitted with greta) of
    pyrethroid bioassay survival as a function of kdr allele frequency, with
-   posterior predictive checks. greta needs Python and TensorFlow: run
-   `greta::install_greta_deps()` once before the first run.
+   posterior predictive checks. greta is installed from its GitHub repository
+   (the version in `renv.lock`) and needs Python and TensorFlow: run
+   `greta::greta_set_python("uv")` once before the first run.
 
 Functions used by these scripts are in `R/functions.R`.
 
