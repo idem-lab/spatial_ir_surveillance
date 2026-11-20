@@ -256,6 +256,421 @@ kdr_mortality <- function(draws, insecticides) {
   summarise_matrix(mortality)
 }
 
+# ==== bioassay variance (R/fit_bioassay_variance.R) ====
+
+# rate of the exponential prior on 1 / range of the pixel-year effects:
+# P(range < 10 km) = 0.05
+inv_range_prior_rate <- -10 * log(0.05)
+
+# Wendland's taper psi(r) = (1 - r)^4 (1 + 4 r) of distances d, with r =
+# d / taper_km, 0 beyond taper_km. With great-circle distances, the tapered
+# exponential correlation is positive definite on the sphere (Gneiting 2013)
+wendland_taper <- function(d, taper_km) {
+  r <- pmin(d / taper_km, 1)
+  (1 - r)^4 * (1 + 4 * r)
+}
+
+# ---- bioassay variance: model ----
+
+# greta model of bioassay variance, from the selected bioassays. For
+# bioassay i of insecticide j in pixel l, district d, province r, country c
+# and year t:
+#   logit(1 - pi_i) = W_jlt + B_jdt
+# The within-district-year effect is
+#   W_jlt = sigma_v_j v_lt + sigma_e_j e_lt
+# with v_.t a Gaussian process over all pixels in year t, with unit variance
+# and the correlation exp(-d / range) psi(d / taper_km) between pixels a
+# great-circle distance d apart, and e_lt independent standard normal (a
+# nugget). The between-district-year effect is
+#   B_jdt = alpha_j + (beta_j + sigma_trend_j trend_c) (t - 2015) / 10 +
+#           sigma_country_j b_c + sigma_country_year_j h_ct +
+#           sigma_province_j p_r + sigma_province_year_j q_rt +
+#           sigma_district_j c_d + sigma_district_year_j delta_dt
+# The standardised effects (v, e, trend, b, h, p, q, c, delta) are standard
+# normal and shared between the insecticides, whose intercepts, trends and SDs
+# differ: each effect is the same up to its scale in both insecticides. The
+# country effect is centred, as the data identify it well: the first
+# insecticide's effect has SD sigma_country_1, and the others' are it scaled
+# by their SDs; the rest are non-centred. Provinces are admin-1 units. The
+# prior on 1 / range shrinks toward an infinite range (Fuglstad et al. 2019):
+# exponential with rate inv_range_prior_rate. pixel_xy is a two-column matrix
+# of each bioassay's pixel centre (longitude, latitude). Returns the model,
+# the insecticides (in the order of the parameters), and what
+# fresh_survival() needs
+build_variance_model <- function(bioassays, pixel_xy, taper_km) {
+  # ---- indices ----
+  insecticides <- sort(unique(bioassays$insecticide_type))
+  j_i <- match(bioassays$insecticide_type, insecticides)
+  # the index of each bioassay's level of an effect
+  level <- function(label) match(label, unique(label))
+  # provinces: the admin-1 unit of each admin-2 district (GADM ids
+  # "BFA.9.1_1" -> "BFA.9"); admin-1 districts are their own province
+  province_id <- ifelse(bioassays$admin_level == 2,
+                        sub("\\.[0-9]+_[0-9]+$", "", bioassays$district_id),
+                        bioassays$district_id)
+  country_i <- level(bioassays$country_name)
+  lt_i <- level(bioassays$pixel_year)
+  first_lt <- match(seq_len(max(lt_i)), lt_i)
+  clusters <- pixel_year_clusters(pixel_xy[first_lt, , drop = FALSE],
+                                  bioassays$year[first_lt], taper_km)
+  decade <- (bioassays$year - 2015) / 10
+
+  # ---- priors ----
+  half_normal <- function() {
+    greta::normal(0, 1, truncation = c(0, Inf), dim = length(insecticides))
+  }
+  alpha <- greta::normal(0, 3, dim = length(insecticides))
+  beta <- greta::normal(0, 1, dim = length(insecticides))
+  sigma_trend <- half_normal()
+  sigma_country <- half_normal()
+  sigma_country_year <- half_normal()
+  sigma_province <- half_normal()
+  sigma_province_year <- half_normal()
+  sigma_district <- half_normal()
+  sigma_district_year <- half_normal()
+  sigma_v <- half_normal()
+  sigma_e <- half_normal()
+  inv_range <- greta::exponential(inv_range_prior_rate)
+
+  # ---- effects ----
+  # a non-centred effect of the levels in index: a standardised effect
+  # shared between the insecticides, scaled by each insecticide's SD
+  effect <- function(sigma, index) {
+    sigma[j_i] * greta::normal(0, 1, dim = max(index))[index]
+  }
+  country_1 <- greta::normal(0, sigma_country[1], dim = max(country_i))
+  country <- (sigma_country[j_i] / sigma_country[1]) * country_1[country_i]
+  between <- alpha[j_i] +
+    (beta[j_i] + effect(sigma_trend, country_i)) * decade +
+    country +
+    effect(sigma_country_year,
+           level(paste(bioassays$country_name, bioassays$year))) +
+    effect(sigma_province, level(province_id)) +
+    effect(sigma_province_year, level(paste(province_id, bioassays$year))) +
+    effect(sigma_district, level(bioassays$district_id)) +
+    effect(sigma_district_year, level(bioassays$district_year))
+  within <- within_effect(sigma_v, sigma_e, inv_range, j_i, lt_i, clusters,
+                          taper_km)
+
+  # ---- bioassays ----
+  survival <- greta::ilogit(between + within)
+  bioassay_likelihood(bioassays, survival)
+  model <- greta::model(alpha, beta, sigma_trend, sigma_country,
+                        sigma_country_year, sigma_province,
+                        sigma_province_year, sigma_district,
+                        sigma_district_year, sigma_v, sigma_e, inv_range)
+
+  list(model = model, insecticides = insecticides, between = between,
+       sigma_v = sigma_v, sigma_e = sigma_e, inv_range = inv_range,
+       j_i = j_i, lt_i = lt_i, clusters = clusters, taper_km = taper_km)
+}
+
+# the within-district-year effect of each bioassay: new pixel-year effects v
+# (a GP over the points of clusters from pixel_year_clusters()) and e, shared
+# between the insecticides and scaled by each insecticide's SDs. j_i and lt_i
+# are each bioassay's insecticide and pixel-year
+within_effect <- function(sigma_v, sigma_e, inv_range, j_i, lt_i, clusters,
+                          taper_km) {
+  v <- tapered_gp(clusters, inv_range, taper_km)
+  e <- greta::normal(0, 1, dim = length(v))
+  sigma_v[j_i] * v[lt_i] + sigma_e[j_i] * e[lt_i]
+}
+
+# expected survival of each bioassay with new pixel-year effects (v and e)
+# drawn from their fitted SDs and range, and the between-district-year
+# effects at their fitted values: new bioassays at the fitted pixels of the
+# same district-years. fit is the list from build_variance_model() (or as
+# saved by R/fit_bioassay_variance.R); greta::calculate() with the posterior
+# draws as values and nsim draws the new effects for each posterior draw.
+# Made outside build_variance_model() because greta::model() takes in every
+# variable connected to its parameters, and would sample these as free
+# parameters
+fresh_survival <- function(fit) {
+  greta::ilogit(fit$between + within_effect(fit$sigma_v, fit$sigma_e,
+                                            fit$inv_range, fit$j_i, fit$lt_i,
+                                            fit$clusters, fit$taper_km))
+}
+
+# clusters of points (rows of the two-column matrix xy, of longitude and
+# latitude) within the same group, linked by chains of points under taper_km
+# apart (all the points of a group without a taper). Points in different
+# clusters are independent, so the correlation matrix is block-diagonal over
+# clusters. Returns the clusters in classes by size, each class with: the
+# points of each cluster (a matrix of clusters by slots, with NA in unused
+# slots after the used ones), and the great-circle distances (km) between
+# them (an array of clusters by slots by slots). Unused slots are given a huge
+# distance from every other slot, so each cluster's correlation matrix is
+# padded to the class size with an identity and stays positive definite; as
+# they come after the used slots, they do not change the used slots'
+# Cholesky factor
+pixel_year_clusters <- function(xy, group, taper_km) {
+  points <- sf::st_as_sf(data.frame(x = xy[, 1], y = xy[, 2]),
+                         coords = c("x", "y"), crs = 4326)
+  members <- unlist(lapply(split(seq_along(group), group), function(rows) {
+    if (is.infinite(taper_km)) return(list(rows))
+    near <- sf::st_is_within_distance(points[rows, ], dist = taper_km * 1000)
+    graph <- igraph::graph_from_adj_list(near, mode = "all")
+    split(rows, igraph::components(graph)$membership)
+  }), recursive = FALSE)
+  # clusters are padded to the largest in their size class, so the classes
+  # keep the padding small while keeping the number of batches low
+  size_class <- cut(lengths(members),
+                    c(0, 10, 25, 50, 100, 150, 200, 300, Inf))
+  lapply(split(members, size_class, drop = TRUE), function(class_members) {
+    slots <- max(lengths(class_members))
+    point <- t(vapply(class_members,
+                      function(m) c(m, rep(NA, slots - length(m))),
+                      numeric(slots)))
+    padding <- matrix(1e6, slots, slots)
+    diag(padding) <- 0
+    distance <- array(rep(padding, each = length(class_members)),
+                      c(length(class_members), slots, slots))
+    for (k in seq_along(class_members)) {
+      m <- class_members[[k]]
+      distance[k, seq_along(m), seq_along(m)] <-
+        as.numeric(sf::st_distance(points[m, ])) / 1000
+    }
+    list(point = point, distance = distance)
+  })
+}
+
+# unit-variance pixel-year effects with the tapered exponential correlation
+# of 1 / range (a scalar greta array) between the points of each cluster from
+# pixel_year_clusters(): for each class, one batched Cholesky factor per
+# cluster of its padded correlation matrix times new standard normals
+# (tf_tapered_gp()). greta has no public interface for custom operations, so
+# this uses its internal constructor (greta from GitHub, as in renv.lock)
+tapered_gp <- function(clusters, inv_range, taper_km) {
+  parts <- lapply(clusters, function(size_class) {
+    used <- which(!is.na(size_class$point))
+    # standard normals only for the used slots, which tf_tapered_gp() places
+    # by slot (0-based positions in the normals, with the last, one past them,
+    # a zero for the unused slots), so the unused slots add nothing to the
+    # free state
+    slot <- array(length(used), dim(size_class$point))
+    slot[used] <- seq_along(used) - 1L
+    effects <- greta::.internals$nodes$constructors$op(
+      "tapered_gp", inv_range,
+      greta::normal(0, 1, dim = length(used)),
+      greta::as_data(size_class$distance),
+      dim = dim(size_class$point),
+      operation_args = list(taper_km = taper_km, slot = slot),
+      tf_operation = "tf_tapered_gp", tf_function_env = environment()
+    )
+    list(effects = effects[used], point = size_class$point[used])
+  })
+  effects <- do.call(c, lapply(parts, `[[`, "effects"))
+  effects[order(unlist(lapply(parts, `[[`, "point")))]
+}
+
+# tensorflow of tapered_gp(): inv_range (draws, 1, 1), z (draws, used slots,
+# 1) and distance (1, clusters, slots, slots; broadcast over draws) tensors,
+# and slot, the position in z of each cluster's slots. The taper is computed
+# as in wendland_taper()
+tf_tapered_gp <- function(inv_range, z, distance, taper_km, slot) {
+  tf <- tensorflow::tf
+  z <- tf$squeeze(tf$pad(z, list(c(0L, 0L), c(0L, 1L), c(0L, 0L))), -1L)
+  z <- tf$gather(z, slot, axis = 1L)
+  r <- tf$minimum(distance / taper_km, 1)
+  taper <- (1 - r)^4 * (1 + 4 * r)
+  correlation <- tf$exp(-distance * tf$expand_dims(inv_range, -1L)) * taper
+  chol <- tf$linalg$cholesky(correlation)
+  tf$squeeze(tf$matmul(chol, tf$expand_dims(z, -1L)), -1L)
+}
+
+# summaries of bioassay mortality for the checks of the variance model: those
+# of mortality_summaries(), and the mean over district-years of the SD and of
+# the variance of mortality between their pixel-years (the mean SD is smaller
+# than the mean variance implies if the variance differs between
+# district-years)
+variance_summaries <- function(mortality, bioassays) {
+  sds <- sapply(split(seq_along(mortality), bioassays$district_year),
+                function(rows) {
+                  sd(tapply(mortality[rows], bioassays$pixel_year[rows], mean))
+                })
+  c(mortality_summaries(mortality, bioassays),
+    within_district_sd = mean(sds), within_district_var = mean(sds^2))
+}
+
+# ---- bioassay variance: simulated districts ----
+
+# the archetypal district: a circle 100 km across (about the median diameter
+# of districts with bioassay data), on a grid of 5 km pixels (as the
+# bioassay data; centres in km)
+district_grid <- function() {
+  centres <- seq(-47.5, 47.5, by = 5)
+  grid <- expand.grid(x = centres, y = centres)
+  grid[sqrt(grid$x^2 + grid$y^2) <= 50, ]
+}
+
+# one realisation of a unit-variance GP on grid with the tapered exponential
+# correlation of length scale range
+simulate_gp <- function(grid, range, taper_km) {
+  distance <- as.matrix(dist(grid))
+  correlation <- exp(-distance / range) * wendland_taper(distance, taper_km)
+  as.vector(t(chol(correlation + diag(1e-9, nrow(grid)))) %*%
+              rnorm(nrow(grid)))
+}
+
+# mortality in each pixel of a district with pixel effects u (logit scale)
+# whose mean mortality over its pixels is district_mean: the logit-scale
+# district effect is solved for this realisation, so every simulated district
+# has the stated mean
+district_mortality <- function(u, district_mean) {
+  shift <- uniroot(function(mu) mean(plogis(mu + u)) - district_mean,
+                   qlogis(district_mean) + c(-1, 1) * (10 + max(abs(u))),
+                   tol = 1e-10)$root
+  plogis(shift + u)
+}
+
+# column labels of simulated districts: the parameters of each draw, one per
+# line (markdown, for ggtext)
+district_labels <- function(sigma_v, range, sigma_e = NULL) {
+  label <- sprintf("\u03c3<sub>v</sub> = %.2f<br>\u2113 = %.0f km", sigma_v,
+                   range)
+  if (is.null(sigma_e)) return(label)
+  paste0(label, sprintf("<br>\u03c3<sub>e</sub> = %.2f", sigma_e))
+}
+
+# mortality on the district grid for each of the pixel effects in effects (a
+# list, one per draw, labelled by labels) and each district mean (labelled
+# by row_labels), with the draws ordered by increasing variance of mortality
+# between pixels, averaged over the district means
+simulate_districts <- function(effects, labels, district_means,
+                               row_labels = sprintf("Mean %.0f%%",
+                                                    100 * district_means)) {
+  variance <- sapply(effects, function(u) {
+    mean(sapply(district_means, function(m) var(district_mortality(u, m))))
+  })
+  panels <- expand.grid(k = seq_along(effects), r = seq_along(district_means))
+  do.call(rbind, Map(function(k, r) {
+    data.frame(district_grid(),
+               mortality = district_mortality(effects[[k]], district_means[r]),
+               draw = factor(labels[k], labels[order(variance)]),
+               district_mean = factor(row_labels[r], row_labels))
+  }, panels$k, panels$r))
+}
+
+# the simulated districts plotted: mortality on the grid (fill), by district
+# mean (rows) and parameter draw (columns), white to colour
+plot_districts <- function(simulated, title, colour) {
+  ggplot2::ggplot(simulated, ggplot2::aes(x, y, fill = mortality)) +
+    ggplot2::geom_raster() +
+    ggplot2::coord_equal() +
+    ggplot2::facet_grid(district_mean ~ draw, switch = "both") +
+    ggplot2::scale_fill_gradient(low = "white", high = colour,
+                                 limits = c(0, 1),
+                                 labels = scales::percent,
+                                 name = "Mortality") +
+    ggplot2::labs(title = title) +
+    ggplot2::theme_void(base_size = 18) +
+    ggplot2::theme(strip.text.x = ggtext::element_markdown(size = 16,
+                                                           lineheight = 1.3),
+                   strip.text.y.left = ggplot2::element_text(size = 16,
+                                                             angle = 90),
+                   plot.title = ggplot2::element_text(size = 22),
+                   plot.margin = ggplot2::margin(10, 10, 10, 10))
+}
+
+# simulated districts drawn from the priors of the variance model: n_draws
+# draws of sigma_v, the range and sigma_e, with the pixel effects with and
+# without e (the same realisation of v in both, and the columns in the same
+# order: by increasing variance of mortality between pixels without e).
+# Returns the two plots, white to a muted grey-brown, distinct from ir_cube's
+# insecticide colours
+prior_district_plots <- function(district_means, taper_km, n_draws) {
+  grid <- district_grid()
+  sigma_v <- abs(rnorm(n_draws))
+  sigma_e <- abs(rnorm(n_draws))
+  range <- 1 / rexp(n_draws, inv_range_prior_rate)
+  v <- lapply(seq_len(n_draws), function(k) {
+    sigma_v[k] * simulate_gp(grid, range[k], taper_km)
+  })
+  v_e <- lapply(seq_len(n_draws), function(k) {
+    v[[k]] + sigma_e[k] * rnorm(nrow(grid))
+  })
+  labels_v <- district_labels(sigma_v, range)
+  labels_v_e <- district_labels(sigma_v, range, sigma_e)
+  without_e <- simulate_districts(v, labels_v, district_means)
+  with_e <- simulate_districts(v_e, labels_v_e, district_means)
+  with_e$draw <- factor(with_e$draw,
+                        labels_v_e[match(levels(without_e$draw), labels_v)])
+  title <- "Districts simulated from the model priors,"
+  colour <- "#6E5A4B"
+  list(with_e = plot_districts(with_e, paste(title, "with pixel effects"),
+                               colour),
+       without_e = plot_districts(without_e,
+                                  paste(title, "without pixel effects"),
+                                  colour))
+}
+
+# the pixel effects of posterior draw k (a row of the matrix of posterior
+# draws) on the district grid, for each insecticide: one realisation of the
+# standardised v and e, scaled by each insecticide's SDs
+posterior_pixel_effects <- function(posterior, k, insecticides, taper_km) {
+  grid <- district_grid()
+  v <- simulate_gp(grid, 1 / posterior[k, "inv_range"], taper_km)
+  e <- rnorm(nrow(grid))
+  lapply(seq_along(insecticides), function(j) {
+    posterior[k, sprintf("sigma_v[%d,1]", j)] * v +
+      posterior[k, sprintf("sigma_e[%d,1]", j)] * e
+  })
+}
+
+# the SD of mortality (percentage points) between the pixels of districts
+# with each district mean, over n_draws posterior draws, each with its own
+# realisation of the pixel effects: mean, median and 95% interval, by
+# insecticide and district mean
+district_sd_summary <- function(posterior, insecticides, district_means,
+                                taper_km, n_draws) {
+  sds <- do.call(rbind, lapply(sample(nrow(posterior), n_draws), function(k) {
+    effects <- posterior_pixel_effects(posterior, k, insecticides, taper_km)
+    do.call(rbind, lapply(seq_along(insecticides), function(j) {
+      data.frame(insecticide = insecticides[j], district_mean = district_means,
+                 sd = sapply(district_means, function(m) {
+                   100 * sd(district_mortality(effects[[j]], m))
+                 }))
+    }))
+  }))
+  sds |>
+    dplyr::group_by(insecticide, district_mean) |>
+    dplyr::summarise(mean = mean(sd), median = median(sd),
+                     lower = quantile(sd, 0.025), upper = quantile(sd, 0.975),
+                     .groups = "drop")
+}
+
+# simulated districts drawn from the posterior of the variance model, for
+# each insecticide: n_draws posterior draws, with rows labelled by the mean
+# SD of mortality between pixels (from district_sd_summary()). Returns the
+# plots, named by insecticide, white to ir_cube's pyrethroid blue
+posterior_district_plots <- function(posterior, insecticides, district_means,
+                                     district_sds, taper_km, n_draws) {
+  draws <- sample(nrow(posterior), n_draws)
+  effects <- lapply(draws, posterior_pixel_effects, posterior = posterior,
+                    insecticides = insecticides, taper_km = taper_km)
+  plots <- lapply(seq_along(insecticides), function(j) {
+    sds <- district_sds[district_sds$insecticide == insecticides[j], ]
+    sds <- sds[match(district_means, sds$district_mean), ]
+    labels <- district_labels(posterior[draws, sprintf("sigma_v[%d,1]", j)],
+                              1 / posterior[draws, "inv_range"],
+                              posterior[draws, sprintf("sigma_e[%d,1]", j)])
+    simulated <- simulate_districts(
+      lapply(effects, `[[`, j), labels, district_means,
+      sprintf("Mean %.0f%% (\u00b1 %.0f%%)", 100 * sds$district_mean,
+              sds$mean)
+    )
+    plot_districts(simulated, paste("Districts simulated from the fitted",
+                                    "model,", insecticides[j]), "#2166AC")
+  })
+  setNames(plots, insecticides)
+}
+
+# save a district figure, at a size that fits its labels
+save_district_figure <- function(plot, file) {
+  ggplot2::ggsave(file, plot, width = 14, height = 9.5, dpi = 200,
+                  bg = "white")
+}
+
 # ==== posterior summaries and checks (both models) ====
 
 # posterior mean, SD and quantiles of each column of a matrix of draws
