@@ -16,15 +16,21 @@ genotypes <- data.frame(
                    "S/S (no.)", "F/S (no.)")
 )
 
-# ==== kdr predictor (R/fit_kdr_predictor.R) ====
+# ==== bioassays (R/fit_kdr_predictor.R, R/fit_bioassay_variance.R) ====
+
+# the insecticides of both models: the pyrethroids with enough survivor/dead
+# pairs to estimate the kdr effect (alpha-cypermethrin has no pairs, and
+# cyfluthrin and lambda-cyhalothrin one each); the variance model uses the
+# same bioassays
+insecticides <- c("Deltamethrin", "Permethrin")
 
 # bioassay intra-class correlation of mortality by insecticide: the posterior
-# means in ir_cube's outputs/bioassay_rho_hierarchical.csv (untracked; from its
-# final run of 30 Oct 2026 on the deduplicated bioassays our data come from),
-# made by R/fig_illustrate_bioassay_variability.R, which fits rho
-# hierarchically to all replicate bioassays in a pixel, year and insecticide.
-# ir_cube's two-stage model uses the same values
-rho <- c("Deltamethrin" = 0.1492, "Permethrin" = 0.1401)
+# means of ir_cube's R/fig_illustrate_bioassay_variability.R (outputs/
+# bioassay_rho_hierarchical.csv, untracked) on its branch rho-study-effect
+# (idem-lab/ir_cube#72), which fits rho hierarchically to all replicate
+# bioassays in a pixel, year and insecticide, with a study-year effect, so
+# that rho is the noise between bioassays of one study
+rho <- setNames(c(0.1363, 0.1280), insecticides)
 
 # beta-binomial distribution in greta with mean p and intra-class correlation
 # rho (ir_cube's, from its R/functions.R)
@@ -34,12 +40,43 @@ betabinomial_p_rho <- function(N, p, rho) {
   greta::beta_binomial(size = N, alpha = a, beta = b)
 }
 
+# the likelihood of the bioassays' deaths: beta-binomial around their
+# expected mortality, 1 - survival (a greta array), with rho fixed for each
+# insecticide
+bioassay_likelihood <- function(bioassays, survival) {
+  rho_i <- unname(rho[bioassays$insecticide_type])
+  stopifnot(!anyNA(rho_i))
+  died <- greta::as_data(bioassays$died)
+  greta::distribution(died) <- betabinomial_p_rho(bioassays$mosquito_number,
+                                                  1 - survival, rho_i)
+}
+
+# a study left out: Yadouleton et al. (2010, Malaria Journal 9:83) report
+# 100% deltamethrin mortality at all 43 localities despite kdr frequencies up
+# to 0.97, with no susceptible reference strain, which isn't credible as a
+# measure of population mortality
+excluded_study <- "yadouleton 2010, Benin"
+
+# bioassays with the insecticides, other than of An. arabiensis (whose kdr
+# effect differs from that of An. gambiae and An. coluzzii; the variance
+# model leaves it out too, so the two models share their bioassays) and the
+# excluded study, labelled by pixel-year, district-year and study-year
+select_bioassays <- function(bioassays) {
+  bioassays |>
+    dplyr::filter(insecticide_type %in% insecticides,
+                  !grepl("arabiensis", species), study != excluded_study) |>
+    dplyr::mutate(pixel_year = paste(pixel_id, year),
+                  district_year = paste(district_id, year),
+                  study_year = paste(study, year))
+}
+
+# ==== kdr predictor (R/fit_kdr_predictor.R) ====
+
 # pyrethroids as spelled in the IR Mapper survivor/dead file, and as in the
 # bioassay data
-pair_pyrethroids <- c(deltamethrin = "Deltamethrin",
-                      permethrin = "Permethrin")
+pair_pyrethroids <- setNames(insecticides, tolower(insecticides))
 
-# ---- data ----
+# ---- kdr predictor: data ----
 
 # kdr samples in the same pixel as a bioassay pixel-year (pixels of mask),
 # collected in that year, one row per (pixel-year, sample) pair. A sample
@@ -72,8 +109,7 @@ select_kdr_sampled <- function(bioassays, links) {
     dplyr::mutate(selection = cut(kdr_frequency, c(-Inf, 0.3, 0.7, Inf),
                                   c("kdr below 0.3", "kdr 0.3 to 0.7",
                                     "kdr 0.7 or above"),
-                                  right = FALSE) |>
-                    as.character())
+                                  right = FALSE))
   dplyr::inner_join(bioassays, dplyr::select(sampled, pixel_year, selection),
                     by = dplyr::join_by(pixel_year))
 }
@@ -132,10 +168,10 @@ read_pair_genotypes <- function(file) {
     dplyr::filter(survivors + dead > 0)
 }
 
-# ---- model ----
+# ---- kdr predictor: model ----
 
-# greta model, from the selected bioassays, their kdr samples (from
-# find_same_pixel_samples()) and the survivor/dead pairs (from
+# greta model of the kdr predictor, from the selected bioassays, their kdr
+# samples (from find_same_pixel_samples()) and the survivor/dead pairs (from
 # read_pair_genotypes()). For bioassay i of insecticide j in pixel-year
 # (l, t), with kdr frequency f:
 #   logit(1 - pi_i) = alpha_j + u_lt + 2 f_lt (beta_j + b_lt)
@@ -143,7 +179,7 @@ read_pair_genotypes <- function(file) {
 # 1 - pi_i (for posterior predictive checks); the insecticides, in the order
 # of alpha and beta; and the greta arrays of each pixel-year's latent
 # variables, u, b and f, with the pixel-years in their order
-build_model <- function(bioassays, samples, pairs) {
+build_kdr_model <- function(bioassays, samples, pairs) {
   # ---- indices ----
   pixel_years <- unique(bioassays$pixel_year)
   lt_i <- match(bioassays$pixel_year, pixel_years)
@@ -151,8 +187,6 @@ build_model <- function(bioassays, samples, pairs) {
   j_i <- match(bioassays$insecticide_type, insecticides)
   # the pairs inform the kdr effects of the bioassays' insecticides
   stopifnot(all(pairs$insecticide %in% insecticides))
-  rho_i <- unname(rho[bioassays$insecticide_type])
-  stopifnot(!anyNA(rho_i))
   n_lt <- length(pixel_years)
 
   # ---- priors ----
@@ -183,9 +217,7 @@ build_model <- function(bioassays, samples, pairs) {
   survival <- greta::ilogit(
     alpha[j_i] + u[lt_i] + 2 * f[lt_i] * (beta[j_i] + b[lt_i])
   )
-  died <- greta::as_data(bioassays$died)
-  greta::distribution(died) <- betabinomial_p_rho(bioassays$mosquito_number,
-                                                  1 - survival, rho_i)
+  bioassay_likelihood(bioassays, survival)
 
   # ---- survivor/dead pairs ----
   # genotyped survivors L of L + D with a kdr alleles in pair h: binomial with
@@ -209,7 +241,22 @@ build_model <- function(bioassays, samples, pairs) {
        pixel_years = pixel_years)
 }
 
-# ---- summaries ----
+# bioassay mortality for each insecticide, for a population with average
+# deviations (u = b = 0): without kdr, 1 - ilogit(alpha), and with kdr fixed,
+# 1 - ilogit(alpha + 2 beta), summarised as summarise_matrix()
+kdr_mortality <- function(draws, insecticides) {
+  matrix_draws <- as.matrix(draws)
+  alpha <- matrix_draws[, paste0("alpha[", seq_along(insecticides), ",1]"),
+                        drop = FALSE]
+  beta <- matrix_draws[, paste0("beta[", seq_along(insecticides), ",1]"),
+                       drop = FALSE]
+  mortality <- cbind(1 - plogis(alpha), 1 - plogis(alpha + 2 * beta))
+  colnames(mortality) <- c(paste0("mortality_kdr_absent_", insecticides),
+                           paste0("mortality_kdr_fixed_", insecticides))
+  summarise_matrix(mortality)
+}
+
+# ==== posterior summaries and checks (both models) ====
 
 # posterior mean, SD and quantiles of each column of a matrix of draws
 summarise_matrix <- function(matrix_draws) {
@@ -225,38 +272,28 @@ summarise_matrix <- function(matrix_draws) {
 }
 
 # posterior summaries of each parameter, with the potential scale reduction
-# factor (R-hat) and effective sample size, naming alpha and beta's elements
-# (greta's alpha[1,1]...) by insecticide. Followed by the same parameters as
-# bioassay mortality for each insecticide, for a population with average
-# deviations (u = b = 0): without kdr, 1 - ilogit(alpha), and with kdr fixed,
-# 1 - ilogit(alpha + 2 beta)
+# factor (R-hat) and effective sample size, naming the elements of parameters
+# with one per insecticide (greta's alpha[1,1]...) by insecticide
 summarise_draws <- function(draws, insecticides) {
   matrix_draws <- as.matrix(draws)
-  pattern <- "^(alpha|beta)\\[(\\d+),1\\]$"
+  pattern <- "^(.+)\\[(\\d+),1\\]$"
   vector_element <- grepl(pattern, colnames(matrix_draws))
   colnames(matrix_draws)[vector_element] <- paste0(
     sub(pattern, "\\1", colnames(matrix_draws)[vector_element]), "_",
     insecticides[as.integer(sub(pattern, "\\2",
                                 colnames(matrix_draws)[vector_element]))]
   )
-  estimates <- summarise_matrix(matrix_draws) |>
+  summarise_matrix(matrix_draws) |>
     dplyr::mutate(
       r_hat = coda::gelman.diag(draws, multivariate = FALSE,
                                 autoburnin = FALSE)$psrf[, 1],
       effective_samples = coda::effectiveSize(draws)
     )
-
-  alpha <- matrix_draws[, paste0("alpha_", insecticides), drop = FALSE]
-  beta <- matrix_draws[, paste0("beta_", insecticides), drop = FALSE]
-  mortality <- cbind(1 - plogis(alpha), 1 - plogis(alpha + 2 * beta))
-  colnames(mortality) <- c(paste0("mortality_kdr_absent_", insecticides),
-                           paste0("mortality_kdr_fixed_", insecticides))
-  dplyr::bind_rows(estimates, summarise_matrix(mortality))
 }
 
 # summaries of bioassay mortality, for posterior predictive checks
-mortality_summaries <- function(mortality, pixel_year) {
-  pixel_year_mortality <- tapply(mortality, pixel_year, mean)
+mortality_summaries <- function(mortality, bioassays) {
+  pixel_year_mortality <- tapply(mortality, bioassays$pixel_year, mean)
   c(mean = mean(mortality),
     share_at_100 = mean(mortality >= 1),
     share_below_98 = mean(mortality < 0.98),
@@ -277,13 +314,16 @@ two_sided_p_within <- function(x) {
 # posterior predictive checks: simulate each bioassay's deaths from posterior
 # draws of its expected survival (survival_draws: draws by bioassays), and
 # compare summaries of simulated and observed mortality within each group of
-# bioassays, with the central 95% of the simulated summaries and a two-sided
-# posterior predictive p-value. A check fails if its p-value is below
+# bioassays (by row, a factor such as kdr band or study group, and
+# insecticide), with the central 95% of the simulated summaries and a
+# two-sided posterior predictive p-value. A check fails if its p-value is below
 # min_p_threshold, the Westfall-Young min-p threshold for a 5% family-wise
 # error rate across all the checks: the 5th percentile of the smallest
 # p-value across the checks of each simulated dataset, which allows for the
-# checks being correlated
-posterior_predictive_check <- function(survival_draws, bioassays, group) {
+# checks being correlated. summaries is a function of the mortality and the
+# rows of bioassays in a group, returning a named vector
+posterior_predictive_check <- function(survival_draws, bioassays, row,
+                                       summaries = mortality_summaries) {
   # beta shapes a and b sum to 1 / rho - 1, as in betabinomial_p_rho()
   phi_i <- 1 / unname(rho[bioassays$insecticide_type]) - 1
   n_i <- bioassays$mosquito_number
@@ -293,15 +333,18 @@ posterior_predictive_check <- function(survival_draws, bioassays, group) {
     rbinom(length(survival), n_i, p_dead) / n_i
   })
   observed <- bioassays$died / n_i
-  groups <- split(seq_len(nrow(bioassays)), group)
+  groups <- split(seq_len(nrow(bioassays)),
+                  interaction(row, bioassays$insecticide_type, drop = TRUE))
+  first <- sapply(groups, `[`, 1)
   # summaries of the simulated data: checks by draws
   simulated_summaries <- lapply(groups, function(rows) {
-    apply(simulated[rows, , drop = FALSE], 2, mortality_summaries,
-          pixel_year = bioassays$pixel_year[rows])
+    apply(simulated[rows, , drop = FALSE], 2, summaries,
+          bioassays = bioassays[rows, ])
   })
+  n_summaries <- sapply(simulated_summaries, nrow)
   simulated_summaries <- do.call(rbind, simulated_summaries)
   observed_summaries <- unlist(lapply(groups, function(rows) {
-    mortality_summaries(observed[rows], bioassays$pixel_year[rows])
+    summaries(observed[rows], bioassays[rows, ])
   }))
   stopifnot(length(observed_summaries) == nrow(simulated_summaries))
 
@@ -313,8 +356,8 @@ posterior_predictive_check <- function(survival_draws, bioassays, group) {
   min_p_threshold <- unname(quantile(min_p, 0.05))
 
   data.frame(
-    group = rep(names(groups), each = nrow(simulated_summaries) /
-                  length(groups)),
+    row = rep(row[first], n_summaries),
+    insecticide = rep(bioassays$insecticide_type[first], n_summaries),
     summary = rownames(simulated_summaries),
     observed = observed_summaries,
     simulated_median = apply(simulated_summaries, 1, median),
@@ -329,13 +372,13 @@ posterior_predictive_check <- function(survival_draws, bioassays, group) {
 
 # ---- plots ----
 
-# plot posterior predictive checks (output of posterior_predictive_check(),
-# with groups named "band: insecticide"): for each summary of bioassay
-# mortality (columns) and band of kdr frequency (rows), the observed summary
-# for each insecticide (rows within a panel; point) against the central 95% of
-# summaries of simulated data (whisker), with the two-sided posterior
-# predictive p-value. Checks that fail (p-value below the min-p threshold for
-# a 5% family-wise error rate) are in black
+# plot posterior predictive checks (output of posterior_predictive_check()):
+# for each summary of bioassay mortality (columns) and row (in the order of
+# its factor levels), the observed summary for each insecticide (rows within
+# a panel; point)
+# against the central 95% of summaries of simulated data (whisker), with the
+# two-sided posterior predictive p-value. Checks that fail (p-value below the
+# min-p threshold for a 5% family-wise error rate) are in black
 plot_checks <- function(checks) {
   # summaries, in the order and with the labels to plot them
   summaries <- c(
@@ -344,16 +387,17 @@ plot_checks <- function(checks) {
     share_below_98 = "share below 98%",
     share_below_90 = "share below 90%",
     percentile_10 = "10th percentile",
-    pixel_year_sd = "SD between pixel-years"
+    pixel_year_sd = "SD between pixel-years",
+    within_district_sd = "SD within district-years",
+    within_district_var = "variance within district-years"
   )
-  bands <- c("kdr below 0.3", "kdr 0.3 to 0.7", "kdr 0.7 or above")
+  summaries <- summaries[names(summaries) %in% checks$summary]
 
   checks <- checks |>
     dplyr::mutate(
-      band = factor(sub(": .*", "", group), levels = bands),
       # first insecticide (alphabetically) at the top
-      insecticide = factor(sub(".*: ", "", group),
-                           levels = rev(sort(unique(sub(".*: ", "", group))))),
+      insecticide = factor(insecticide,
+                           levels = rev(sort(unique(insecticide)))),
       summary = factor(summaries[summary], levels = summaries),
       p_label = dplyr::case_when(
         p_value < 0.001 ~ "p < 0.001",
@@ -361,7 +405,7 @@ plot_checks <- function(checks) {
         .default = sprintf("p = %.2f", p_value)
       )
     )
-  stopifnot(!anyNA(checks$band), !anyNA(checks$summary))
+  stopifnot(!anyNA(checks$summary))
 
   ggplot2::ggplot(checks, ggplot2::aes(y = insecticide)) +
     ggplot2::geom_linerange(
@@ -381,9 +425,9 @@ plot_checks <- function(checks) {
                                guide = "none") +
     # room above the top insecticide for its p-value
     ggplot2::scale_y_discrete(expand = ggplot2::expansion(add = c(0.4, 0.9))) +
-    # kdr bands labelled on the left, summaries on top, each summary with its
-    # own horizontal scale
-    ggplot2::facet_grid(band ~ summary, scales = "free_x", switch = "y") +
+    # rows (kdr bands or study groups) labelled on the left, summaries on
+    # top, each summary with its own horizontal scale
+    ggplot2::facet_grid(row ~ summary, scales = "free_x", switch = "y") +
     # room on the right so the data stay clear of the p-values
     ggplot2::scale_x_continuous(
       expand = ggplot2::expansion(mult = c(0.05, 0.35)), n.breaks = 4
