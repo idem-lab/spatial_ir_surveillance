@@ -34,6 +34,13 @@ changes. Then run the scripts from the project root, in this order:
    posterior predictive checks. greta is installed from its GitHub repository
    (the version in `renv.lock`) and needs Python and TensorFlow: run
    `greta::greta_set_python("uv")` once before the first run.
+5. `R/fit_bioassay_variance.R`: a Bayesian model (fitted with greta) of how
+   much bioassay mortality varies between pixels within a district in one
+   year, after the variation between districts and over time, with
+   posterior predictive checks and districts simulated from its priors and
+   fit. Some bioassays are excluded after checking them against their
+   sources: `metadata/bioassay_exclusions.csv` gives the decision and reason
+   for each.
 
 Functions used by these scripts are in `R/functions.R`.
 
