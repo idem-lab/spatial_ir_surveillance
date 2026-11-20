@@ -674,6 +674,40 @@
       "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
       "Repository": "CRAN"
     },
+    "curl": {
+      "Package": "curl",
+      "Version": "8.1.0",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "A Modern and Flexible Web Client for R",
+      "Authors@R": "c( person(\"Jeroen\", \"Ooms\", role = c(\"aut\", \"cre\"), email = \"jeroenooms@gmail.com\", comment = c(ORCID = \"0000-0002-4035-0289\")), person(\"Hadley\", \"Wickham\", role = \"ctb\"), person(\"Posit Software, PBC\", role = \"cph\"))",
+      "Description": "Bindings to 'libcurl' <https://curl.se/libcurl/> for performing fully configurable HTTP/FTP requests where responses can be processed in memory, on disk, or streaming via the callback or connection interfaces. Some knowledge of 'libcurl' is recommended; for a more-user-friendly web client see the  'httr2' package which builds on this package with http specific tools and logic.",
+      "License": "MIT + file LICENSE",
+      "SystemRequirements": "libcurl (>= 7.73): libcurl-devel (rpm) or libcurl4-openssl-dev (deb)",
+      "URL": "https://jeroen.r-universe.dev/curl",
+      "BugReports": "https://github.com/jeroen/curl/issues",
+      "Suggests": [
+        "spelling",
+        "testthat (>= 1.0.0)",
+        "knitr",
+        "jsonlite",
+        "later",
+        "rmarkdown",
+        "httpuv (>= 1.4.4)",
+        "webutils"
+      ],
+      "VignetteBuilder": "knitr",
+      "Depends": [
+        "R (>= 3.0.0)"
+      ],
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Config/roxygen2/version": "8.0.0",
+      "NeedsCompilation": "yes",
+      "Author": "Jeroen Ooms [aut, cre] (ORCID: <https://orcid.org/0000-0002-4035-0289>), Hadley Wickham [ctb], Posit Software, PBC [cph]",
+      "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
     "dplyr": {
       "Package": "dplyr",
       "Version": "1.2.1",
@@ -967,6 +1001,44 @@
       "Maintainer": "Thomas Lin Pedersen <thomas.pedersen@posit.co>",
       "Repository": "CRAN"
     },
+    "ggtext": {
+      "Package": "ggtext",
+      "Version": "0.2.0",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Improved Text Rendering Support for 'ggplot2'",
+      "Authors@R": "c( person( given = \"Claus O.\", family = \"Wilke\", role = c(\"aut\"), email = \"wilke@austin.utexas.edu\", comment = c(ORCID = \"0000-0002-7470-9261\") ), person( given = \"Brenton M.\", family = \"Wiernik\", role = c(\"aut\", \"cre\"), email = \"brenton@wiernik.org\", comment = c(ORCID = \"0000-0001-9560-6336\", Twitter = \"@bmwiernik\") ) )",
+      "Description": "A 'ggplot2' extension that enables the rendering of complex formatted plot labels (titles, subtitles, facet labels, axis labels, etc.). Text boxes with automatic word wrap are also supported.",
+      "URL": "https://wilkelab.org/ggtext/",
+      "BugReports": "https://github.com/wilkelab/ggtext/issues",
+      "License": "GPL-2",
+      "Depends": [
+        "R (>= 3.5)"
+      ],
+      "Imports": [
+        "ggplot2 (>= 3.3.0)",
+        "grid",
+        "gridtext",
+        "rlang",
+        "scales"
+      ],
+      "Suggests": [
+        "cowplot",
+        "dplyr",
+        "glue",
+        "knitr",
+        "rmarkdown",
+        "testthat",
+        "vdiffr"
+      ],
+      "Encoding": "UTF-8",
+      "VignetteBuilder": "knitr",
+      "Config/roxygen2/version": "8.0.0",
+      "NeedsCompilation": "no",
+      "Author": "Claus O. Wilke [aut] (ORCID: <https://orcid.org/0000-0002-7470-9261>), Brenton M. Wiernik [aut, cre] (ORCID: <https://orcid.org/0000-0001-9560-6336>, Twitter: @bmwiernik)",
+      "Maintainer": "Brenton M. Wiernik <brenton@wiernik.org>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
     "globals": {
       "Package": "globals",
       "Version": "0.20.0",
@@ -1036,8 +1108,8 @@
     },
     "greta": {
       "Package": "greta",
-      "Version": "0.6.0",
-      "Source": "Repository",
+      "Version": "0.6.0.9000",
+      "Source": "GitHub",
       "Type": "Package",
       "Title": "Simple and 'Scalable' Statistical Modelling in R",
       "Authors@R": "c( person(\"Nick\", \"Golding\", , \"nick.golding.research@gmail.com\", role = c(\"aut\", \"cph\"), comment = c(ORCID = \"0000-0001-8916-5570\")), person(\"Nicholas\", \"Tierney\", , \"nicholas.tierney@gmail.com\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"https://orcid.org/0000-0003-1460-8722\")), person(\"Simon\", \"Dirmeier\", role = \"ctb\"), person(\"Adam\", \"Fleischhacker\", role = \"ctb\"), person(\"Shirin\", \"Glander\", role = \"ctb\"), person(\"Martin\", \"Ingram\", role = \"ctb\"), person(\"Lee\", \"Hazel\", role = \"ctb\"), person(\"Lionel\", \"Hertzog\", role = \"ctb\"), person(\"Tiphaine\", \"Martin\", role = \"ctb\"), person(\"Matt\", \"Mulvahill\", role = \"ctb\"), person(\"Michael\", \"Quinn\", role = \"ctb\"), person(\"David\", \"Smith\", role = \"ctb\"), person(\"Paul\", \"Teetor\", role = \"ctb\"), person(\"Jian\", \"Yen\", role = \"ctb\") )",
@@ -1046,7 +1118,7 @@
       "URL": "https://greta-dev.github.io/greta/, https://github.com/greta-dev/greta",
       "BugReports": "https://github.com/greta-dev/greta/issues",
       "Depends": [
-        "R (>= 4.1.0)"
+        "R (>= 4.3.0)"
       ],
       "Imports": [
         "abind",
@@ -1066,6 +1138,7 @@
         "tools",
         "utils",
         "whisker",
+        "withr",
         "yesno"
       ],
       "Suggests": [
@@ -1084,30 +1157,77 @@
         "MCMCpack",
         "mockery",
         "mvtnorm",
+        "pkgload",
         "purrr",
         "rmarkdown",
         "rmutil",
         "rsvg",
         "spelling",
-        "testthat (>= 3.1.0)",
+        "testthat (>= 3.3.0)",
         "tibble",
         "tidyr",
         "truncdist",
-        "withr",
         "rstudioapi"
       ],
       "VignetteBuilder": "knitr",
       "Config/testthat/edition": "3",
       "Encoding": "UTF-8",
-      "Language": "en-US",
-      "SystemRequirements": "Python (>= 3.7.0) with header files and shared library; TensorFlow (>= v2.0.0; https://www.tensorflow.org/); TensorFlow Probability (v0.8.0; https://www.tensorflow.org/probability/)",
-      "Collate": "'package.R' 'utils.R' 'greta_mcmc_list.R' 'tf_functions.R' 'overloaded.R' 'node_class.R' 'node_types.R' 'variable.R' 'probability_distributions.R' 'mixture.R' 'joint.R' 'unknowns_class.R' 'greta_array_class.R' 'as_data.R' 'distribution.R' 'operators.R' 'functions.R' 'transforms.R' 'structures.R' 'extract_replace_combine.R' 'dag_class.R' 'data-deps-tf-tfp.R' 'greta_model_class.R' 'progress_bar.R' 'inference_class.R' 'samplers.R' 'sampler_class.R' 'optimisers.R' 'optimiser_class.R' 'inference.R' 'install_tensorflow.R' 'calculate.R' 'callbacks.R' 'simulate.R' 'chol2symm.R' 'install_greta_deps.R' 'conda_greta_env.R' 'python_backend.R' 'greta_stash.R' 'greta_create_conda_env.R' 'greta_install_miniconda.R' 'greta_install_python_deps.R' 'new_install_process.R' 'reinstallers.R' 'checkers.R' 'test_if_forked_cluster.R' 'testthat-helpers.R' 'write-logfiles.R' 'zzz.R' 'internals.R' 'greta-sitrep.R'",
+      "Language": "en-GB",
+      "Roxygen": "list(markdown = TRUE)",
+      "SystemRequirements": "Python (>= 3.9) with header files and shared library; TensorFlow (>= v2.18.0, <= v2.21.0; https://www.tensorflow.org/); TensorFlow Probability (>= v0.25.0; https://www.tensorflow.org/probability/)",
       "LazyData": "true",
-      "Config/roxygen2/version": "8.0.0",
-      "NeedsCompilation": "no",
+      "Config/roxygen2/version": "8.1.0",
       "Author": "Nick Golding [aut, cph] (ORCID: <https://orcid.org/0000-0001-8916-5570>), Nicholas Tierney [aut, cre] (ORCID: <https://orcid.org/0000-0003-1460-8722>), Simon Dirmeier [ctb], Adam Fleischhacker [ctb], Shirin Glander [ctb], Martin Ingram [ctb], Lee Hazel [ctb], Lionel Hertzog [ctb], Tiphaine Martin [ctb], Matt Mulvahill [ctb], Michael Quinn [ctb], David Smith [ctb], Paul Teetor [ctb], Jian Yen [ctb]",
       "Maintainer": "Nicholas Tierney <nicholas.tierney@gmail.com>",
-      "Repository": "CRAN"
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "greta-dev",
+      "RemoteRepo": "greta",
+      "RemoteRef": "af99b1a34202221a51bdfda765a11da8cbdc894d",
+      "RemoteSha": "af99b1a34202221a51bdfda765a11da8cbdc894d"
+    },
+    "gridtext": {
+      "Package": "gridtext",
+      "Version": "0.1.6",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Improved Text Rendering Support for 'Grid' Graphics",
+      "Authors@R": "c( person( given = \"Claus O.\", family = \"Wilke\", role = c(\"aut\"), email = \"wilke@austin.utexas.edu\", comment = c(ORCID = \"0000-0002-7470-9261\") ), person( given = \"Brenton M.\", family = \"Wiernik\", role = c(\"aut\", \"cre\"), email = \"brenton@wiernik.org\", comment = c(ORCID = \"0000-0001-9560-6336\", Twitter = \"@bmwiernik\") ) )",
+      "Description": "Provides support for rendering of formatted text using 'grid' graphics. Text can be formatted via a minimal subset of 'Markdown', 'HTML', and inline 'CSS' directives, and it can be rendered both with and without word wrap.",
+      "URL": "https://wilkelab.org/gridtext/",
+      "BugReports": "https://github.com/wilkelab/gridtext/issues",
+      "License": "MIT + file LICENSE",
+      "Depends": [
+        "R (>= 3.5)"
+      ],
+      "Imports": [
+        "curl",
+        "grid",
+        "grDevices",
+        "markdown",
+        "rlang",
+        "Rcpp",
+        "png",
+        "jpeg",
+        "stringr",
+        "xml2"
+      ],
+      "Suggests": [
+        "covr",
+        "knitr",
+        "rmarkdown",
+        "testthat",
+        "vdiffr"
+      ],
+      "LinkingTo": [
+        "Rcpp"
+      ],
+      "Encoding": "UTF-8",
+      "RoxygenNote": "7.1.1",
+      "NeedsCompilation": "yes",
+      "Author": "Claus O. Wilke [aut] (ORCID: <https://orcid.org/0000-0002-7470-9261>), Brenton M. Wiernik [aut, cre] (ORCID: <https://orcid.org/0000-0001-9560-6336>, Twitter: @bmwiernik)",
+      "Maintainer": "Brenton M. Wiernik <brenton@wiernik.org>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
     },
     "gtable": {
       "Package": "gtable",
@@ -1221,6 +1341,76 @@
       "Maintainer": "Kirill Müller <kirill@cynkra.com>",
       "Repository": "CRAN"
     },
+    "igraph": {
+      "Package": "igraph",
+      "Version": "2.3.4",
+      "Source": "Repository",
+      "Title": "Network Analysis and Visualization",
+      "Authors@R": "c( person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = \"aut\", comment = c(ORCID = \"0000-0001-7098-9676\")), person(\"Tamás\", \"Nepusz\", , \"ntamas@gmail.com\", role = \"aut\", comment = c(ORCID = \"0000-0002-1451-338X\")), person(\"Vincent\", \"Traag\", role = \"aut\", comment = c(ORCID = \"0000-0003-3170-3879\")), person(\"Szabolcs\", \"Horvát\", , \"szhorvat@gmail.com\", role = \"aut\", comment = c(ORCID = \"0000-0002-3100-523X\")), person(\"Fabio\", \"Zanini\", , \"fabio.zanini@unsw.edu.au\", role = \"aut\", comment = c(ORCID = \"0000-0001-7097-8539\")), person(\"Daniel\", \"Noom\", role = \"aut\"), person(\"Kirill\", \"Müller\", , \"kirill@cynkra.com\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0002-1416-3412\")), person(\"Michael\", \"Antonov\", role = \"ctb\"), person(\"Chan Zuckerberg Initiative\", role = \"fnd\", comment = c(ROR = \"02qenvm24\")), person(\"David\", \"Schoch\", , \"david.schoch@cynkra.com\", role = \"aut\", comment = c(ORCID = \"0000-0003-2952-4812\")), person(\"Maëlle\", \"Salmon\", , \"maelle@cynkra.com\", role = \"aut\", comment = c(ORCID = \"0000-0002-2815-0399\")), person(\"R Consortium\", role = \"fnd\", comment = c(ROR = \"01z833950\")) )",
+      "Description": "Routines for simple graphs and network analysis. It can handle large graphs very well and provides functions for generating random and regular graphs, graph visualization, centrality methods and much more.",
+      "License": "GPL (>= 2)",
+      "URL": "https://r.igraph.org/, https://igraph.org/, https://igraph.discourse.group/",
+      "BugReports": "https://github.com/igraph/rigraph/issues",
+      "Depends": [
+        "methods",
+        "R (>= 3.5.0)"
+      ],
+      "Imports": [
+        "cli",
+        "graphics",
+        "grDevices",
+        "lifecycle",
+        "magrittr",
+        "Matrix",
+        "pkgconfig (>= 2.0.0)",
+        "rlang (>= 1.1.0)",
+        "stats",
+        "utils",
+        "vctrs"
+      ],
+      "Suggests": [
+        "ape (>= 5.7-0.1)",
+        "callr",
+        "decor",
+        "digest",
+        "igraphdata",
+        "knitr",
+        "rgl (>= 1.3.14)",
+        "rmarkdown",
+        "scales",
+        "stats4",
+        "tcltk",
+        "testthat",
+        "vdiffr",
+        "withr"
+      ],
+      "Enhances": [
+        "graph"
+      ],
+      "LinkingTo": [
+        "cpp11 (>= 0.5.0)"
+      ],
+      "VignetteBuilder": "knitr",
+      "Config/build/compilation-database": "false",
+      "Config/build/never-clean": "true",
+      "Config/comment/compilation-database": "Generate manually with pkgload:::generate_db() for faster pkgload::load_all()",
+      "Config/gha/extra-packages": "graph=?ignore-before-r=4.4.0",
+      "Config/comment/gha/extra-packages": "graph is an optional Enhances dependency published only on Bioconductor. The Bioconductor releases matching R 4.2 and R 4.3 (graph 3.16 / 3.18) are archived and return HTTP 404, which aborts pak dependency resolution on those jobs. The ?ignore-before-r pak parameter makes pak ignore graph on R older than 4.4.0, where a published release still exists.",
+      "Config/Needs/build": "devtools, irlba, pkgconfig",
+      "Config/Needs/coverage": "covr",
+      "Config/Needs/roxygen2": "r-lib/roxygen2, igraph/igraph.r2cdocs, moodymudskipper/devtag",
+      "Config/Needs/website": "here, readr, tibble, xmlparsedata, xml2",
+      "Config/testthat/edition": "3",
+      "Config/testthat/parallel": "true",
+      "Config/testthat/start-first": "aaa-auto, vs-es, scan, vs-operators, weakref, watts.strogatz.game",
+      "Encoding": "UTF-8",
+      "SystemRequirements": "libxml2 (optional), glpk (>= 4.57, optional)",
+      "Config/roxygen2/version": "8.1.0.9000",
+      "NeedsCompilation": "yes",
+      "Author": "Gábor Csárdi [aut] (ORCID: <https://orcid.org/0000-0001-7098-9676>), Tamás Nepusz [aut] (ORCID: <https://orcid.org/0000-0002-1451-338X>), Vincent Traag [aut] (ORCID: <https://orcid.org/0000-0003-3170-3879>), Szabolcs Horvát [aut] (ORCID: <https://orcid.org/0000-0002-3100-523X>), Fabio Zanini [aut] (ORCID: <https://orcid.org/0000-0001-7097-8539>), Daniel Noom [aut], Kirill Müller [aut, cre] (ORCID: <https://orcid.org/0000-0002-1416-3412>), Michael Antonov [ctb], Chan Zuckerberg Initiative [fnd] (ROR: <https://ror.org/02qenvm24>), David Schoch [aut] (ORCID: <https://orcid.org/0000-0003-2952-4812>), Maëlle Salmon [aut] (ORCID: <https://orcid.org/0000-0002-2815-0399>), R Consortium [fnd] (ROR: <https://ror.org/01z833950>)",
+      "Maintainer": "Kirill Müller <kirill@cynkra.com>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
     "isoband": {
       "Package": "isoband",
       "Version": "0.3.0",
@@ -1262,6 +1452,26 @@
       "Author": "Hadley Wickham [aut] (ORCID: <https://orcid.org/0000-0003-4757-117X>), Claus O. Wilke [aut] (Original author, ORCID: <https://orcid.org/0000-0002-7470-9261>), Thomas Lin Pedersen [aut, cre] (ORCID: <https://orcid.org/0000-0002-5147-4711>), Posit, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
       "Maintainer": "Thomas Lin Pedersen <thomas.pedersen@posit.co>",
       "Repository": "CRAN"
+    },
+    "jpeg": {
+      "Package": "jpeg",
+      "Version": "0.1-11",
+      "Source": "Repository",
+      "Title": "Read and write JPEG images",
+      "Author": "Simon Urbanek [aut, cre, cph] (https://urbanek.org, <https://orcid.org/0000-0003-2297-1732>)",
+      "Authors@R": "person(\"Simon\", \"Urbanek\", role=c(\"aut\",\"cre\",\"cph\"), email=\"Simon.Urbanek@r-project.org\", comment=c(\"https://urbanek.org\", ORCID=\"0000-0003-2297-1732\"))",
+      "Maintainer": "Simon Urbanek <Simon.Urbanek@r-project.org>",
+      "Depends": [
+        "R (>= 2.9.0)"
+      ],
+      "Description": "This package provides an easy and simple way to read, write and display bitmap images stored in the JPEG format. It can read and write both files and in-memory raw vectors.",
+      "License": "GPL-2 | GPL-3",
+      "SystemRequirements": "libjpeg",
+      "URL": "https://www.rforge.net/jpeg/",
+      "BugReports": "https://github.com/s-u/jpeg/issues",
+      "NeedsCompilation": "yes",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest",
+      "Encoding": "UTF-8"
     },
     "jsonlite": {
       "Package": "jsonlite",
@@ -1419,6 +1629,38 @@
       "Maintainer": "Henrik Bengtsson <henrikb@braju.com>",
       "Repository": "CRAN"
     },
+    "litedown": {
+      "Package": "litedown",
+      "Version": "1.0",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "A Lightweight Version of R Markdown",
+      "Authors@R": "c( person(\"Yihui\", \"Xie\", role = c(\"aut\", \"cre\"), email = \"xie@yihui.name\", comment = c(ORCID = \"0000-0003-0645-5666\", URL = \"https://yihui.org\")), person(\"Tim\", \"Taylor\", role = \"ctb\", comment = c(ORCID = \"0000-0002-8587-7113\")), person(\"John\", \"MacFarlane\", role = \"cph\", comment = \"Author of cmark\"), person(\"Jeroen\", \"Ooms\", role = c(\"ctb\", \"cph\"), comment = \"Author of the R bindings to cmark in the commonmark package, from which the C glue code was adapted\"), person(\"GitHub, Inc.\", role = \"cph\", comment = \"Author of the cmark-gfm extensions\") )",
+      "Description": "Render R Markdown to Markdown (without using 'knitr'), and Markdown to lightweight HTML or 'LaTeX' documents via the bundled 'cmark-gfm' library (instead of 'Pandoc'). Some missing Markdown features in 'cmark-gfm' are also supported, such as raw HTML or 'LaTeX' blocks, 'LaTeX' math, superscripts, subscripts, footnotes, element attributes, and appendices, but not all 'Pandoc' Markdown features are (or will be) supported. With additional JavaScript and CSS, you can also create HTML slides and articles. This package can be viewed as a trimmed-down version of R Markdown and 'knitr'. It does not aim at rich Markdown features or a large variety of output formats (the primary formats are HTML and 'LaTeX'). Book and website projects of multiple input documents are also supported.",
+      "Depends": [
+        "R (>= 3.2.0)"
+      ],
+      "Imports": [
+        "utils",
+        "xfun (>= 0.62)"
+      ],
+      "Suggests": [
+        "rbibutils",
+        "rstudioapi",
+        "testit",
+        "tinyimg",
+        "tinytex"
+      ],
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/yihui/litedown",
+      "BugReports": "https://github.com/yihui/litedown/issues",
+      "Encoding": "UTF-8",
+      "Config/roxygen2/version": "8.1.1",
+      "NeedsCompilation": "yes",
+      "Author": "Yihui Xie [aut, cre] (ORCID: <https://orcid.org/0000-0003-0645-5666>, URL: https://yihui.org), Tim Taylor [ctb] (ORCID: <https://orcid.org/0000-0002-8587-7113>), John MacFarlane [cph] (Author of cmark), Jeroen Ooms [ctb, cph] (Author of the R bindings to cmark in the commonmark package, from which the C glue code was adapted), GitHub, Inc. [cph] (Author of the cmark-gfm extensions)",
+      "Maintainer": "Yihui Xie <xie@yihui.name>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
     "magrittr": {
       "Package": "magrittr",
       "Version": "2.0.5",
@@ -1449,6 +1691,38 @@
       "Author": "Stefan Milton Bache [aut, cph] (Original author and creator of magrittr), Hadley Wickham [aut], Lionel Henry [cre], Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
       "Maintainer": "Lionel Henry <lionel@posit.co>",
       "Repository": "CRAN"
+    },
+    "markdown": {
+      "Package": "markdown",
+      "Version": "2.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "A Thin Wrapper of 'litedown' to Render Markdown Documents",
+      "Authors@R": "c( person(\"Yihui\", \"Xie\", role = c(\"aut\", \"cre\"), email = \"xie@yihui.name\", comment = c(ORCID = \"0000-0003-0645-5666\")), person(\"JJ\", \"Allaire\", role = \"aut\"), person(\"Jeffrey\", \"Horner\", role = \"aut\"), person(\"Henrik\", \"Bengtsson\", role = \"ctb\"), person(\"Jim\", \"Hester\", role = \"ctb\"), person(\"Yixuan\", \"Qiu\", role = \"ctb\"), person(\"Kohske\", \"Takahashi\", role = \"ctb\"), person(\"Adam\", \"November\", role = \"ctb\"), person(\"Nacho\", \"Caballero\", role = \"ctb\"), person(\"Jeroen\", \"Ooms\", role = \"ctb\"), person(\"Thomas\", \"Leeper\", role = \"ctb\"), person(\"Joe\", \"Cheng\", role = \"ctb\"), person(\"Andrzej\", \"Oles\", role = \"ctb\"), person(given = \"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
+      "Description": "Render Markdown to HTML/LaTeX. This package has been superseded by 'litedown'. Please call 'litedown::mark()' directly.",
+      "Depends": [
+        "R (>= 3.2.0)"
+      ],
+      "Imports": [
+        "utils",
+        "xfun",
+        "litedown (>= 0.6)"
+      ],
+      "Suggests": [
+        "knitr",
+        "rmarkdown (>= 2.18)",
+        "yaml",
+        "RCurl"
+      ],
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/rstudio/markdown",
+      "BugReports": "https://github.com/rstudio/markdown/issues",
+      "Encoding": "UTF-8",
+      "Config/roxygen2/version": "8.1.1",
+      "NeedsCompilation": "no",
+      "Author": "Yihui Xie [aut, cre] (ORCID: <https://orcid.org/0000-0003-0645-5666>), JJ Allaire [aut], Jeffrey Horner [aut], Henrik Bengtsson [ctb], Jim Hester [ctb], Yixuan Qiu [ctb], Kohske Takahashi [ctb], Adam November [ctb], Nacho Caballero [ctb], Jeroen Ooms [ctb], Thomas Leeper [ctb], Joe Cheng [ctb], Andrzej Oles [ctb], Posit Software, PBC [cph, fnd]",
+      "Maintainer": "Yihui Xie <xie@yihui.name>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
     },
     "otel": {
       "Package": "otel",
@@ -2192,6 +2466,81 @@
       "Maintainer": "Edzer Pebesma <edzer.pebesma@uni-muenster.de>",
       "Repository": "CRAN"
     },
+    "stringi": {
+      "Package": "stringi",
+      "Version": "1.8.9",
+      "Source": "Repository",
+      "Date": "2026-07-30",
+      "Title": "Fast and Portable Character String Processing Facilities",
+      "Description": "A collection of character string/text/natural language processing tools for pattern searching (e.g., with 'Java'-like regular expressions or the 'Unicode' collation algorithm), random string generation, case mapping, string transliteration, concatenation, sorting, padding, wrapping, Unicode normalisation, date-time formatting and parsing, and many more. They are fast, consistent, convenient, and - thanks to 'ICU' (International Components for Unicode) - portable across all locales and platforms. Documentation about 'stringi' is provided via its website at <https://stringi.gagolewski.com/> and the paper by Gagolewski (2022, <doi:10.18637/jss.v103.i02>).",
+      "URL": "https://stringi.gagolewski.com/, https://github.com/gagolews/stringi, https://icu.unicode.org/",
+      "BugReports": "https://github.com/gagolews/stringi/issues",
+      "SystemRequirements": "ICU4C (>= 61, optional)",
+      "Type": "Package",
+      "Depends": [
+        "R (>= 3.4)"
+      ],
+      "Imports": [
+        "tools",
+        "utils",
+        "stats"
+      ],
+      "Biarch": "TRUE",
+      "License": "file LICENSE",
+      "Authors@R": "c(person(given = \"Marek\", family = \"Gagolewski\", role = c(\"aut\", \"cre\", \"cph\"), email = \"marek@gagolewski.com\", comment = c(ORCID = \"0000-0003-0637-6028\")), person(given = \"Bartek\", family = \"Tartanus\", role = \"ctb\"), person(\"Unicode, Inc. and others\", role=\"ctb\", comment = \"ICU4C source code, Unicode Character Database\") )",
+      "Encoding": "UTF-8",
+      "Config/roxygen2/version": "8.0.0",
+      "NeedsCompilation": "yes",
+      "Author": "Marek Gagolewski [aut, cre, cph] (ORCID: <https://orcid.org/0000-0003-0637-6028>), Bartek Tartanus [ctb], Unicode, Inc. and others [ctb] (ICU4C source code, Unicode Character Database)",
+      "Maintainer": "Marek Gagolewski <marek@gagolewski.com>",
+      "License_is_FOSS": "yes",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
+    "stringr": {
+      "Package": "stringr",
+      "Version": "1.6.0",
+      "Source": "Repository",
+      "Title": "Simple, Consistent Wrappers for Common String Operations",
+      "Authors@R": "c( person(\"Hadley\", \"Wickham\", , \"hadley@posit.co\", role = c(\"aut\", \"cre\", \"cph\")), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")) )",
+      "Description": "A consistent, simple and easy to use set of wrappers around the fantastic 'stringi' package. All function and argument names (and positions) are consistent, all functions deal with \"NA\"'s and zero length vectors in the same way, and the output from one function is easy to feed into the input of another.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://stringr.tidyverse.org, https://github.com/tidyverse/stringr",
+      "BugReports": "https://github.com/tidyverse/stringr/issues",
+      "Depends": [
+        "R (>= 4.1.0)"
+      ],
+      "Imports": [
+        "cli",
+        "glue (>= 1.6.1)",
+        "lifecycle (>= 1.0.3)",
+        "magrittr",
+        "rlang (>= 1.0.0)",
+        "stringi (>= 1.5.3)",
+        "vctrs (>= 0.4.0)"
+      ],
+      "Suggests": [
+        "covr",
+        "dplyr",
+        "gt",
+        "htmltools",
+        "htmlwidgets",
+        "knitr",
+        "rmarkdown",
+        "testthat (>= 3.0.0)",
+        "tibble"
+      ],
+      "VignetteBuilder": "knitr",
+      "Config/Needs/website": "tidyverse/tidytemplate",
+      "Config/potools/style": "explicit",
+      "Config/testthat/edition": "3",
+      "Encoding": "UTF-8",
+      "LazyData": "true",
+      "RoxygenNote": "7.3.3",
+      "NeedsCompilation": "no",
+      "Author": "Hadley Wickham [aut, cre, cph], Posit Software, PBC [cph, fnd]",
+      "Maintainer": "Hadley Wickham <hadley@posit.co>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
     "tensorflow": {
       "Package": "tensorflow",
       "Version": "2.20.0",
@@ -2696,6 +3045,93 @@
       "NeedsCompilation": "yes",
       "Author": "Dewey Dunnington [aut, cre] (ORCID: <https://orcid.org/0000-0002-9415-4582>), Edzer Pebesma [aut] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Anthony North [ctb]",
       "Repository": "CRAN"
+    },
+    "xfun": {
+      "Package": "xfun",
+      "Version": "0.62",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Supporting Functions for Packages Maintained by 'Yihui Xie'",
+      "Authors@R": "c( person(\"Yihui\", \"Xie\", role = c(\"aut\", \"cre\", \"cph\"), email = \"xie@yihui.name\", comment = c(ORCID = \"0000-0003-0645-5666\", URL = \"https://yihui.org\")), person(\"Wush\", \"Wu\", role = \"ctb\"), person(\"Daijiang\", \"Li\", role = \"ctb\"), person(\"Xianying\", \"Tan\", role = \"ctb\"), person(\"Salim\", \"Brüggemann\", role = \"ctb\", email = \"salim-b@pm.me\", comment = c(ORCID = \"0000-0002-5329-5987\")), person(\"Christophe\", \"Dervieux\", role = \"ctb\"), person() )",
+      "Description": "Miscellaneous functions commonly used in other packages maintained by 'Yihui Xie'.",
+      "Depends": [
+        "R (>= 3.2.0)"
+      ],
+      "Imports": [
+        "grDevices",
+        "stats",
+        "tools"
+      ],
+      "Suggests": [
+        "testit",
+        "parallel",
+        "codetools",
+        "methods",
+        "rstudioapi",
+        "tinytex (>= 0.30)",
+        "mime",
+        "litedown (>= 0.6)",
+        "knitr (>= 1.50)",
+        "remotes",
+        "pak",
+        "curl",
+        "xml2",
+        "jsonlite",
+        "magick",
+        "yaml",
+        "data.table",
+        "qs2"
+      ],
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/yihui/xfun",
+      "BugReports": "https://github.com/yihui/xfun/issues",
+      "Encoding": "UTF-8",
+      "VignetteBuilder": "litedown",
+      "Config/roxygen2/version": "8.1.1",
+      "NeedsCompilation": "yes",
+      "Author": "Yihui Xie [aut, cre, cph] (ORCID: <https://orcid.org/0000-0003-0645-5666>, URL: https://yihui.org), Wush Wu [ctb], Daijiang Li [ctb], Xianying Tan [ctb], Salim Brüggemann [ctb] (ORCID: <https://orcid.org/0000-0002-5329-5987>), Christophe Dervieux [ctb]",
+      "Maintainer": "Yihui Xie <xie@yihui.name>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+    },
+    "xml2": {
+      "Package": "xml2",
+      "Version": "1.6.0",
+      "Source": "Repository",
+      "Title": "Parse XML",
+      "Authors@R": "c( person(\"Hadley\", \"Wickham\", role = \"aut\"), person(\"Jim\", \"Hester\", role = \"aut\"), person(\"Jeroen\", \"Ooms\", email = \"jeroenooms@gmail.com\", role = c(\"aut\", \"cre\")), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")), person(\"R Foundation\", role = \"ctb\", comment = \"Copy of R-project homepage cached as example\") )",
+      "Description": "Bindings to 'libxml2' for working with XML data using a simple,  consistent interface based on 'XPath' expressions. Also supports XML schema validation; for 'XSLT' transformations see the 'xslt' package.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://xml2.r-lib.org, https://r-lib.r-universe.dev/xml2",
+      "BugReports": "https://github.com/r-lib/xml2/issues",
+      "Depends": [
+        "R (>= 3.6.0)"
+      ],
+      "Imports": [
+        "cli",
+        "methods",
+        "rlang (>= 1.1.0)"
+      ],
+      "Suggests": [
+        "covr",
+        "curl",
+        "httr",
+        "knitr",
+        "mockery",
+        "rmarkdown",
+        "testthat (>= 3.2.0)",
+        "xslt"
+      ],
+      "VignetteBuilder": "knitr",
+      "Config/Needs/website": "tidyverse/tidytemplate",
+      "Encoding": "UTF-8",
+      "RoxygenNote": "7.3.3",
+      "SystemRequirements": "libxml2: libxml2-dev (deb), libxml2-devel (rpm)",
+      "Collate": "'S4.R' 'as_list.R' 'xml_parse.R' 'as_xml_document.R' 'classes.R' 'format.R' 'import-standalone-obj-type.R' 'import-standalone-purrr.R' 'import-standalone-types-check.R' 'init.R' 'nodeset_apply.R' 'paths.R' 'utils.R' 'xml2-package.R' 'xml_attr.R' 'xml_children.R' 'xml_document.R' 'xml_find.R' 'xml_missing.R' 'xml_modify.R' 'xml_name.R' 'xml_namespaces.R' 'xml_node.R' 'xml_nodeset.R' 'xml_path.R' 'xml_schema.R' 'xml_serialize.R' 'xml_structure.R' 'xml_text.R' 'xml_type.R' 'xml_url.R' 'xml_write.R'",
+      "Config/testthat/edition": "3",
+      "NeedsCompilation": "yes",
+      "Author": "Hadley Wickham [aut], Jim Hester [aut], Jeroen Ooms [aut, cre], Posit Software, PBC [cph, fnd], R Foundation [ctb] (Copy of R-project homepage cached as example)",
+      "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
+      "Repository": "https://packagemanager.posit.co/cran/__linux__/noble/latest"
     },
     "yaml": {
       "Package": "yaml",
