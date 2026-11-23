@@ -45,6 +45,13 @@ differs from that of An. gambiae and An. coluzzii.
    fit. Some bioassays are excluded after checking them against their
    sources: `metadata/bioassay_exclusions.csv` gives the decision and reason
    for each.
+6. `R/fit_kdr_rho_collection.R`: a Bayesian model (fitted with greta) of the
+   overdispersion of kdr allele counts between replicate genotyped samples,
+   for each way the mosquitoes were collected (larvae, house resting or exit
+   trap, resting outdoors, human landing or light trap).
+   Writes posterior summaries to `output/kdr_rho_collection_estimates.csv`
+   and the joint posterior draws of rho to
+   `output/kdr_rho_collection_fit.RDS`, for the simulations.
 
 Functions used by these scripts are in `R/functions.R`.
 
