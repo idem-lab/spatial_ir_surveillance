@@ -22,13 +22,17 @@ Vector Atlas and IR Mapper. `R/get_data.R` lists their sources and checksums.
 
 Open the RStudio project and run `renv::restore()` to install the packages at
 the versions recorded in `renv.lock`. Run it again whenever `renv.lock`
-changes. Then run the scripts from the project root, in this order:
+changes. Then run the scripts from the project root, in the order below. The
+data prep (steps 2 and 3) leaves out An. arabiensis, because its kdr effect
+differs from that of An. gambiae and An. coluzzii.
 
 1. `R/get_data.R`: checks the data files match the versions the analysis was
    run with, copying them from a local clone of ir_cube if they are missing.
 2. `R/prep_bioassays.R`: subsets the bioassays and adds district and pixel IDs.
    Downloads admin boundaries from GADM on the first run.
-3. `R/prep_kdr_samples.R`: kdr allele frequencies in genotyped samples.
+3. `R/prep_kdr_samples.R`: kdr allele frequencies in genotyped samples, with
+   each sample's pixel, species group, collection year and how its
+   mosquitoes were collected.
 4. `R/fit_kdr_predictor.R`: a Bayesian model (fitted with greta) of
    pyrethroid bioassay survival as a function of kdr allele frequency, with
    posterior predictive checks. greta is installed from its GitHub repository

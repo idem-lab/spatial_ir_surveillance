@@ -16,6 +16,27 @@ genotypes <- data.frame(
                    "S/S (no.)", "F/S (no.)")
 )
 
+# ==== pixels (all scripts) ====
+
+# the grid of pixels: the grid of ir_cube's raster mask (its origin and
+# resolution) extended to the whole globe, without values, so that every
+# bioassay and kdr sample is in a pixel, whether or not the mask covers it
+pixel_grid <- function() {
+  terra::extend(terra::rast(terra::rast("data/ir_cube/raster_mask.tif")),
+                terra::ext(-180, 180, -90, 90), snap = "in")
+}
+
+# the ID of the pixel containing each location: its cell number in
+# pixel_grid()
+pixel_id_at <- function(longitude, latitude) {
+  terra::cellFromXY(pixel_grid(), cbind(longitude, latitude))
+}
+
+# the centre of each pixel, a two-column matrix of longitude and latitude
+pixel_centres <- function(pixel_id) {
+  terra::xyFromCell(pixel_grid(), pixel_id)
+}
+
 # ==== bioassays (R/fit_kdr_predictor.R, R/fit_bioassay_variance.R) ====
 
 # the insecticides of both models: the pyrethroids with enough survivor/dead
@@ -57,14 +78,12 @@ bioassay_likelihood <- function(bioassays, survival) {
 # measure of population mortality
 excluded_study <- "yadouleton 2010, Benin"
 
-# bioassays with the insecticides, other than of An. arabiensis (whose kdr
-# effect differs from that of An. gambiae and An. coluzzii; the variance
-# model leaves it out too, so the two models share their bioassays) and the
-# excluded study, labelled by pixel-year, district-year and study-year
+# bioassays with the insecticides, other than of the excluded study,
+# labelled by pixel-year, district-year and study-year
 select_bioassays <- function(bioassays) {
   bioassays |>
     dplyr::filter(insecticide_type %in% insecticides,
-                  !grepl("arabiensis", species), study != excluded_study) |>
+                  study != excluded_study) |>
     dplyr::mutate(pixel_year = paste(pixel_id, year),
                   district_year = paste(district_id, year),
                   study_year = paste(study, year))
@@ -78,16 +97,14 @@ pair_pyrethroids <- setNames(insecticides, tolower(insecticides))
 
 # ---- kdr predictor: data ----
 
-# kdr samples in the same pixel as a bioassay pixel-year (pixels of mask),
-# collected in that year, one row per (pixel-year, sample) pair. A sample
-# collected over several years that match bioassays in the same pixel is
-# assigned to the one nearest the middle of its collection years (the earlier
-# on a tie), so each sample is used once
-find_same_pixel_samples <- function(bioassays, kdr_samples, mask) {
+# kdr samples in the same pixel as a bioassay pixel-year, collected in that
+# year, one row per (pixel-year, sample) pair. A sample collected over
+# several years that match bioassays in the same pixel is assigned to the one
+# nearest the middle of its collection years (the earlier on a tie), so each
+# sample is used once
+find_same_pixel_samples <- function(bioassays, kdr_samples) {
   pixel_years <- dplyr::distinct(bioassays, pixel_year, pixel_id, year)
   kdr_samples |>
-    dplyr::mutate(pixel_id = terra::cellFromXY(mask,
-                                               cbind(longitude, latitude))) |>
     dplyr::inner_join(pixel_years, by = dplyr::join_by(pixel_id),
                       relationship = "many-to-many") |>
     dplyr::filter(year_start <= year, year_end >= year) |>
@@ -115,7 +132,9 @@ select_kdr_sampled <- function(bioassays, links) {
 }
 
 # genotype counts of survivors and dead in IR Mapper's survivor/dead pairs
-# tested with deltamethrin or permethrin, other than An. arabiensis: one row
+# tested with deltamethrin or permethrin, other than An. arabiensis (left
+# out of the bioassays and kdr samples too, in R/prep_bioassays.R and
+# R/prep_kdr_samples.R, as its kdr effect differs): one row
 # per pair and number of kdr alleles a, with the numbers of survivors and dead
 # genotyped. Where a row gives genotype percentages but no counts, counts are
 # the percentages times the number genotyped
