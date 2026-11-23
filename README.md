@@ -34,9 +34,12 @@ differs from that of An. gambiae and An. coluzzii.
    each sample's pixel, species group, collection year and how its
    mosquitoes were collected.
 4. `R/fit_kdr_predictor.R`: a Bayesian model (fitted with greta) of
-   pyrethroid bioassay survival as a function of kdr allele frequency, with
-   posterior predictive checks. greta is installed from its GitHub repository
-   (the version in `renv.lock`) and needs Python and TensorFlow: run
+   pyrethroid bioassay survival as a function of kdr allele frequency: a
+   hazard model in which kdr and other drivers of resistance, correlated
+   with kdr frequency, lower the hazard of dying in the bioassay; with
+   posterior predictive checks and 10-fold cross-validation by pixel-year.
+   greta is installed from its GitHub repository (the version in
+   `renv.lock`) and needs Python and TensorFlow: run
    `greta::greta_set_python("uv")` once before the first run.
 5. `R/fit_bioassay_variance.R`: a Bayesian model (fitted with greta) of how
    much bioassay mortality varies between pixels within a district in one
