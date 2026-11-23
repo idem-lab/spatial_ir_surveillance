@@ -690,6 +690,106 @@ save_district_figure <- function(plot, file) {
                   bg = "white")
 }
 
+# ==== kdr overdispersion by collection class (R/fit_kdr_rho_collection.R) ====
+
+# runs of years at most one year apart: the number of the run each year is in
+year_runs <- function(year) {
+  years <- sort(unique(year))
+  cumsum(c(1, diff(years) > 1))[match(year, years)]
+}
+
+# replicate groups of kdr samples (from data/kdr_samples.csv): samples of the
+# same pixel and species group, from collection years linked when at most one
+# year apart. Only groups of at least two samples are kept
+replicate_groups <- function(samples) {
+  samples |>
+    dplyr::group_by(pixel_id, species_group) |>
+    dplyr::mutate(group = paste(pixel_id, species_group,
+                                year_runs(collection_year))) |>
+    dplyr::group_by(group) |>
+    dplyr::filter(dplyr::n() > 1) |>
+    dplyr::ungroup()
+}
+
+# greta model of kdr overdispersion by collection class, ir_cube's
+# hierarchical model of bioassay rho (R/fig_illustrate_bioassay_variability.R
+# on its branch rho-study-effect) with kdr samples in place of bioassays and
+# collection classes in place of insecticides, with one level of pooling of
+# rho. The distribution of the replicate groups' kdr frequencies and the SD
+# of the study-year effects are by species group (by insecticide in
+# ir_cube). For kdr sample k with A_k kdr alleles of 2 M_k, in replicate
+# group r of species group q, from study g in year t, of collection class c:
+#   A_k ~ BetaBinomial(2 M_k, p_k, rho_c(k))
+#   logit(p_k) = logit(f_r(k)) + s_g,t(k)
+#   f_r ~ Beta(m_q(r) kappa_q(r), (1 - m_q(r)) kappa_q(r))
+#   s_g,t ~ Normal(0, sigma_s,q(g,t))
+#   logit(rho_c) ~ Normal(mu, sigma_rho)
+# with ir_cube's priors. rho is in the order of classes
+build_rho_collection_model <- function(samples, classes) {
+  # ---- levels and indices ----
+  species <- sort(unique(samples$species_group))
+  groups <- unique(samples$group)
+  study_years <- unique(samples$study_year)
+  c_k <- match(samples$collection, classes)
+  r_k <- match(samples$group, groups)
+  gt_k <- match(samples$study_year, study_years)
+  q_r <- match(samples$species_group[match(groups, samples$group)], species)
+  q_gt <- match(samples$species_group[match(study_years, samples$study_year)],
+                species)
+
+  # ---- rho, by collection class ----
+  # centred, as each class's rho is well informed by its samples
+  mu <- greta::normal(qlogis(0.15), 1)
+  sigma_rho <- greta::normal(0, 0.5, truncation = c(0, Inf))
+  logit_rho <- greta::normal(mu, sigma_rho, dim = length(classes))
+  rho <- greta::ilogit(logit_rho)
+
+  # ---- kdr frequency of each replicate group ----
+  # mean and concentration of the frequencies in each species group
+  m <- greta::beta(1, 1, dim = length(species))
+  kappa <- greta::lognormal(log(5), 2, dim = length(species))
+  f <- greta::beta(m[q_r] * kappa[q_r], (1 - m[q_r]) * kappa[q_r],
+                   dim = length(groups))
+
+  # ---- study-year effect (non-centred), SD by species group ----
+  sigma_s <- greta::normal(0, 1, truncation = c(0, Inf),
+                           dim = length(species))
+  s <- sigma_s[q_gt] * greta::normal(0, 1, dim = length(study_years))
+
+  # ---- kdr samples ----
+  p <- greta::ilogit(log(f[r_k]) - log1p(-f[r_k]) + s[gt_k])
+  alleles <- 2 * samples$n_tested
+  kdr_alleles <- greta::as_data(round(alleles * samples$kdr_frequency))
+  greta::distribution(kdr_alleles) <- betabinomial_p_rho(alleles, p,
+                                                         rho[c_k])
+
+  greta::model(rho, mu, sigma_rho, sigma_s)
+}
+
+# plot rho by collection class (from summarise_matrix(), with collection,
+# groups and samples columns): the posterior median (point) and 95% interval
+# (whisker) of each class, the first class at the top
+plot_rho_collection <- function(estimates) {
+  estimates <- estimates |>
+    dplyr::mutate(
+      label = sprintf("%s\n(%i groups, %i samples)", collection, groups,
+                      samples),
+      label = factor(label, levels = rev(label))
+    )
+  ggplot2::ggplot(estimates, ggplot2::aes(y = label)) +
+    ggplot2::geom_linerange(ggplot2::aes(xmin = lower, xmax = upper),
+                            colour = "grey80", linewidth = 1.5) +
+    ggplot2::geom_point(ggplot2::aes(x = median), colour = "grey20",
+                        size = 2) +
+    ggplot2::scale_x_continuous(limits = c(0, NA), n.breaks = 6) +
+    ggplot2::labs(x = "kdr intra-class correlation, rho", y = NULL) +
+    ggplot2::theme_minimal(base_size = 10) +
+    ggplot2::theme(
+      panel.grid = ggplot2::element_blank(),
+      panel.border = ggplot2::element_rect(fill = NA, colour = "grey85")
+    )
+}
+
 # ==== posterior summaries and checks (both models) ====
 
 # posterior mean, SD and quantiles of each column of a matrix of draws
