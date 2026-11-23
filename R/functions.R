@@ -37,6 +37,11 @@ pixel_centres <- function(pixel_id) {
   terra::xyFromCell(pixel_grid(), pixel_id)
 }
 
+# half-normal prior on a standard deviation in greta: N+(0, sd^2)
+half_normal <- function(sd = 1, dim = 1) {
+  greta::normal(0, sd, truncation = c(0, Inf), dim = dim)
+}
+
 # ==== bioassays (R/fit_kdr_predictor.R, R/fit_bioassay_variance.R) ====
 
 # the insecticides of both models: the pyrethroids with enough survivor/dead
@@ -189,40 +194,77 @@ read_pair_genotypes <- function(file) {
 
 # ---- kdr predictor: model ----
 
+# log hazard of a fully susceptible population in a bioassay: WHO set the
+# discriminating concentration at twice the LC99.9 of a susceptible colony,
+# and under the hazard model doubling the concentration doubles the hazard,
+# -log(0.001) at the LC99.9
+alpha_star <- log(-2 * log(0.001))
+
+# hazard of dying in a bioassay, H, for a population with kdr frequency f,
+# kdr effect per allele kdr_effect, and the other drivers' frequency g,
+# ilogit(eta), and effect gamma (greta arrays or numbers)
+hazard <- function(f, kdr_effect, g, gamma) {
+  exp(alpha_star - 2 * f * kdr_effect - 2 * g * gamma)
+}
+
+# bioassay survival, exp(-H), and mortality, 1 - exp(-H), from the hazard H
+# (mortality computed so that it is precise when H is small)
+survival <- function(H) {
+  exp(-H)
+}
+mortality <- function(H) {
+  -expm1(-H)
+}
+
 # greta model of the kdr predictor, from the selected bioassays, their kdr
 # samples (from find_same_pixel_samples()) and the survivor/dead pairs (from
 # read_pair_genotypes()). For bioassay i of insecticide j in pixel-year
-# (l, t), with kdr frequency f:
-#   logit(1 - pi_i) = alpha_j + u_lt + 2 f_lt (beta_j + b_lt)
-# Returns the model; the greta array of each bioassay's expected survival,
-# 1 - pi_i (for posterior predictive checks); the insecticides, in the order
-# of alpha and beta; and the greta arrays of each pixel-year's latent
-# variables, u, b and f, with the pixel-years in their order
+# (l, t), the log hazard falls with the mean number of kdr alleles, 2f, and
+# with the other drivers of resistance (other mechanisms and bioassay
+# conditions), in the same form: an allele frequency, ilogit(eta), times a
+# positive effect per allele, gamma_j:
+#   log H_i = alpha* - 2 f_lt exp(lambda_j + b_lt) - 2 gamma_j ilogit(eta_lt)
+#   1 - pi_i = exp(-H_i)
+#   logit(f_lt) = mu_f + sigma_f z_f_lt,  eta_lt = sigma_eta z_eta_lt
+# where z_f and z_eta are standard normal with correlation psi (co-selection:
+# places with more kdr also have more of the other resistance). Returns the
+# model; the greta array of each bioassay's expected survival, 1 - pi_i (for
+# posterior predictive checks); the insecticides, in the order of lambda and
+# gamma; the pixel-years, in the order of the pixel-years' latent variables;
+# and the greta arrays of those latent variables, b, eta and f
 build_kdr_model <- function(bioassays, samples, pairs) {
   # ---- indices ----
   pixel_years <- unique(bioassays$pixel_year)
-  lt_i <- match(bioassays$pixel_year, pixel_years)
   insecticides <- sort(unique(bioassays$insecticide_type))
+  pair_ids <- unique(pairs$pair)
+  lt_i <- match(bioassays$pixel_year, pixel_years)
   j_i <- match(bioassays$insecticide_type, insecticides)
+  lt_k <- match(samples$pixel_year, pixel_years)
+  h <- match(pairs$pair, pair_ids)
+  j_h <- match(pairs$insecticide, insecticides)
+  stopifnot(!anyNA(lt_k))
   # the pairs inform the kdr effects of the bioassays' insecticides
   stopifnot(all(pairs$insecticide %in% insecticides))
   n_lt <- length(pixel_years)
 
   # ---- priors ----
-  alpha <- greta::normal(0, 3, dim = length(insecticides))
-  # kdr effect for each insecticide
-  beta <- greta::normal(0, 1, dim = length(insecticides))
-  sigma_u <- greta::normal(0, 1, truncation = c(0, Inf))
-  sigma_b <- greta::normal(0, 1, truncation = c(0, Inf))
+  # log of the median kdr effect per allele, and the effect of the other
+  # drivers, for each insecticide
+  lambda <- greta::normal(0, 1, dim = length(insecticides))
+  gamma <- greta::lognormal(0, 1, dim = length(insecticides))
+  sigma_b <- half_normal()
+  mu_f <- greta::normal(0, 3)
+  sigma_f <- half_normal(2)
+  sigma_eta <- half_normal()
+  psi <- greta::uniform(-1, 1)
 
   # ---- kdr frequency ----
-  f <- greta::beta(1, 1, dim = n_lt)
+  z_f <- greta::normal(0, 1, dim = n_lt)
+  f <- greta::ilogit(mu_f + sigma_f * z_f)
   # kdr alleles A_k in each sample k of M_k mosquitoes: beta-binomial around
   # its pixel-year's frequency, with intra-class correlation rho_kdr (uniform
   # prior)
   rho_kdr <- greta::beta(1, 1)
-  lt_k <- match(samples$pixel_year, pixel_years)
-  stopifnot(!anyNA(lt_k))
   f_k <- f[lt_k]
   alleles <- 2 * samples$n_tested
   kdr_alleles <- greta::as_data(round(alleles * samples$kdr_frequency))
@@ -230,49 +272,54 @@ build_kdr_model <- function(bioassays, samples, pairs) {
                                                          rho_kdr)
 
   # ---- bioassays ----
-  # logit survival is linear in the mean number of kdr alleles, 2f
-  u <- sigma_u * greta::normal(0, 1, dim = n_lt)
   b <- sigma_b * greta::normal(0, 1, dim = n_lt)
-  survival <- greta::ilogit(
-    alpha[j_i] + u[lt_i] + 2 * f[lt_i] * (beta[j_i] + b[lt_i])
-  )
+  eta <- sigma_eta * (psi * z_f + sqrt(1 - psi^2) *
+                        greta::normal(0, 1, dim = n_lt))
+  survival <- survival(hazard(f[lt_i], exp(lambda[j_i] + b[lt_i]),
+                              greta::ilogit(eta[lt_i]), gamma[j_i]))
   bioassay_likelihood(bioassays, survival)
 
   # ---- survivor/dead pairs ----
   # genotyped survivors L of L + D with a kdr alleles in pair h: binomial with
-  # logit(theta_ha) = gamma_h + (beta_j + b'_h) a, where gamma_h is a nuisance
-  # intercept and b'_h the pair's deviation in the kdr effect
-  pair_ids <- unique(pairs$pair)
-  h <- match(pairs$pair, pair_ids)
-  j_h <- match(pairs$insecticide, insecticides)
-  gamma <- greta::normal(0, 3, dim = length(pair_ids))
+  # logit(theta_ha) = kappa_h + logit(S_ha), where S_ha is the survival of
+  # mosquitoes with a kdr alleles, exp(-exp(omega_h - exp(lambda_j + b'_h) a)),
+  # kappa_h a nuisance intercept (for the shares of survivors and dead
+  # genotyped), omega_h a nuisance log hazard without kdr, and b'_h the
+  # pair's deviation in the kdr effect
+  kappa_pair <- greta::normal(0, 3, dim = length(pair_ids))
+  omega_pair <- greta::normal(0, 3, dim = length(pair_ids))
   b_pair <- sigma_b * greta::normal(0, 1, dim = length(pair_ids))
-  # probability that a genotyped mosquito is a survivor
-  theta <- greta::ilogit(gamma[h] + (beta[j_h] + b_pair[h]) * pairs$a)
+  # logit(S) = -x - log(1 - exp(-x)), with x = -log(S), computed stably
+  x <- exp(omega_pair[h] - exp(lambda[j_h] + b_pair[h]) * pairs$a)
+  theta <- greta::ilogit(kappa_pair[h] - x - log(-expm1(-x)))
   survivors <- greta::as_data(pairs$survivors)
   greta::distribution(survivors) <- greta::binomial(
     pairs$survivors + pairs$dead, theta
   )
 
-  list(model = greta::model(alpha, beta, sigma_u, sigma_b, rho_kdr),
+  list(model = greta::model(lambda, gamma, sigma_b, mu_f, sigma_f, sigma_eta,
+                            psi, rho_kdr),
        survival = survival, insecticides = insecticides,
-       latents = list(u = u, b = b, f = f),
-       pixel_years = pixel_years)
+       pixel_years = pixel_years, b = b, eta = eta, f = f)
 }
 
-# bioassay mortality for each insecticide, for a population with average
-# deviations (u = b = 0): without kdr, 1 - ilogit(alpha), and with kdr fixed,
-# 1 - ilogit(alpha + 2 beta), summarised as summarise_matrix()
+# the median kdr effect per allele, exp(lambda), and bioassay mortality for
+# each insecticide, for a population with the median kdr effect (b = 0) and
+# the other drivers at their median (eta = 0): without kdr, and with kdr
+# fixed (f = 1), summarised as summarise_matrix()
 kdr_mortality <- function(draws, insecticides) {
   matrix_draws <- as.matrix(draws)
-  alpha <- matrix_draws[, paste0("alpha[", seq_along(insecticides), ",1]"),
+  lambda <- matrix_draws[, paste0("lambda[", seq_along(insecticides), ",1]"),
+                         drop = FALSE]
+  gamma <- matrix_draws[, paste0("gamma[", seq_along(insecticides), ",1]"),
                         drop = FALSE]
-  beta <- matrix_draws[, paste0("beta[", seq_along(insecticides), ",1]"),
-                       drop = FALSE]
-  mortality <- cbind(1 - plogis(alpha), 1 - plogis(alpha + 2 * beta))
-  colnames(mortality) <- c(paste0("mortality_kdr_absent_", insecticides),
+  estimates <- cbind(exp(lambda),
+                     mortality(hazard(0, exp(lambda), plogis(0), gamma)),
+                     mortality(hazard(1, exp(lambda), plogis(0), gamma)))
+  colnames(estimates) <- c(paste0("exp_lambda_", insecticides),
+                           paste0("mortality_kdr_absent_", insecticides),
                            paste0("mortality_kdr_fixed_", insecticides))
-  summarise_matrix(mortality)
+  summarise_matrix(estimates)
 }
 
 # ==== bioassay variance (R/fit_bioassay_variance.R) ====
@@ -335,20 +382,17 @@ build_variance_model <- function(bioassays, pixel_xy, taper_km) {
   decade <- (bioassays$year - 2015) / 10
 
   # ---- priors ----
-  half_normal <- function() {
-    greta::normal(0, 1, truncation = c(0, Inf), dim = length(insecticides))
-  }
   alpha <- greta::normal(0, 3, dim = length(insecticides))
   beta <- greta::normal(0, 1, dim = length(insecticides))
-  sigma_trend <- half_normal()
-  sigma_country <- half_normal()
-  sigma_country_year <- half_normal()
-  sigma_province <- half_normal()
-  sigma_province_year <- half_normal()
-  sigma_district <- half_normal()
-  sigma_district_year <- half_normal()
-  sigma_v <- half_normal()
-  sigma_e <- half_normal()
+  sigma_trend <- half_normal(dim = length(insecticides))
+  sigma_country <- half_normal(dim = length(insecticides))
+  sigma_country_year <- half_normal(dim = length(insecticides))
+  sigma_province <- half_normal(dim = length(insecticides))
+  sigma_province_year <- half_normal(dim = length(insecticides))
+  sigma_district <- half_normal(dim = length(insecticides))
+  sigma_district_year <- half_normal(dim = length(insecticides))
+  sigma_v <- half_normal(dim = length(insecticides))
+  sigma_e <- half_normal(dim = length(insecticides))
   inv_range <- greta::exponential(inv_range_prior_rate)
 
   # ---- effects ----
@@ -740,7 +784,7 @@ build_rho_collection_model <- function(samples, classes) {
   # ---- rho, by collection class ----
   # centred, as each class's rho is well informed by its samples
   mu <- greta::normal(qlogis(0.15), 1)
-  sigma_rho <- greta::normal(0, 0.5, truncation = c(0, Inf))
+  sigma_rho <- half_normal(0.5)
   logit_rho <- greta::normal(mu, sigma_rho, dim = length(classes))
   rho <- greta::ilogit(logit_rho)
 
@@ -752,8 +796,7 @@ build_rho_collection_model <- function(samples, classes) {
                    dim = length(groups))
 
   # ---- study-year effect (non-centred), SD by species group ----
-  sigma_s <- greta::normal(0, 1, truncation = c(0, Inf),
-                           dim = length(species))
+  sigma_s <- half_normal(dim = length(species))
   s <- sigma_s[q_gt] * greta::normal(0, 1, dim = length(study_years))
 
   # ---- kdr samples ----

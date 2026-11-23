@@ -1,15 +1,17 @@
-# Fit the kdr predictor of pyrethroid bioassay mortality: survival without kdr
-# (alpha), the effect of each kdr allele (beta), both for each insecticide,
-# and how much each varies between populations (sigma_u, sigma_b). The model
-# (build_kdr_model()) has three likelihoods:
-#   - bioassays, whose logit survival is linear in the population's mean
-#     number of kdr alleles, 2f, where f is its kdr frequency
+# Fit the kdr predictor of pyrethroid bioassay mortality, a hazard model with
+# co-selection. For a bioassay of insecticide j, the log hazard of dying is
+#   log H = alpha* - 2 f exp(lambda_j + b) - 2 gamma_j ilogit(eta)
+# with survival exp(-H), kdr frequency f, and eta the logit frequency of the
+# other drivers of resistance, with correlation psi between eta and logit f
+# (co-selection). alpha* is fixed from the WHO discriminating concentration
+# (twice the LC99.9). The model (build_kdr_model()) has three likelihoods:
+#   - bioassays, through the log hazard above
 #   - genotypes of bioassay survivors and dead (IR Mapper's matched pairs),
-#     which inform beta within populations
+#     which inform the kdr effect within populations
 #   - kdr samples from the same pixel and year as the bioassays, which
 #     inform f
-# There is no time trend: changes over time in survival without kdr are part
-# of the variation between pixel-years.
+# There is no time trend: changes over time in the other drivers are part of
+# the variation between pixel-years.
 #
 # Inputs: data/irmapper/vgsc_survivors_dead.csv (R/get_data.R),
 #   data/bioassays.RDS (R/prep_bioassays.R), data/kdr_samples.csv
@@ -18,18 +20,19 @@
 #   output/kdr_predictor_checks.csv and figures/kdr_predictor_checks.png
 #   (posterior predictive checks),
 #   output/kdr_predictor_fit.RDS (the posterior draws, with the greta arrays
-#   of expected survival and the pixel-years' u, b and f, for
-#   greta::calculate()), output/kdr_predictor_bioassays.RDS (the bioassays)
+#   of expected survival and the pixel-years' latent variables, for
+#   greta::calculate()),
+#   output/kdr_predictor_bioassays.RDS (the bioassays)
 
 source("R/packages.R")
 source("R/functions.R")
 set.seed(2026)
 
-# MCMC settings: twice greta's default number of leapfrog steps per HMC
-# iteration (5 to 10)
-sampler <- greta::hmc(Lmin = 10, Lmax = 20)
-n_samples <- 5000
-warmup <- 5000
+# MCMC settings: 20 to 40 leapfrog steps (greta's default is 5 to 10), where
+# effective draws per second level off; 4000 draws (greta's default is 2000)
+# to reach the effective sample size target, rather than longer trajectories
+sampler <- greta::hmc(Lmin = 20, Lmax = 40)
+n_samples <- 4000
 chains <- 4
 # number of posterior draws used for posterior predictive checks
 n_check_draws <- 10000
@@ -58,14 +61,12 @@ pairs <- read_pair_genotypes("data/irmapper/vgsc_survivors_dead.csv")
 
 built <- build_kdr_model(selected, samples, pairs)
 draws <- greta::mcmc(built$model, sampler = sampler, n_samples = n_samples,
-                     warmup = warmup, chains = chains, verbose = FALSE)
+                     chains = chains, verbose = FALSE)
 
 write.csv(dplyr::bind_rows(summarise_draws(draws, built$insecticides),
                            kdr_mortality(draws, built$insecticides)),
           "output/kdr_predictor_estimates.csv", row.names = FALSE)
-saveRDS(c(list(draws = draws, survival = built$survival,
-               pixel_years = built$pixel_years),
-          built$latents),
+saveRDS(c(list(draws = draws), built[names(built) != "model"]),
         "output/kdr_predictor_fit.RDS")
 saveRDS(selected, "output/kdr_predictor_bioassays.RDS")
 
