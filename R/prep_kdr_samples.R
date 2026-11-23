@@ -12,8 +12,14 @@
 # and complex files, so some samples appear more than once: these copies are
 # removed (see "copies of the same sample", below).
 #
+# Each sample also has its collection class (collection_class(), below: how
+# its mosquitoes were collected), its pixel, species group, collection year
+# and study-year (see "pixel, species group and year", below). Samples of
+# An. arabiensis are left out.
+#
 # Inputs (R/get_data.R): data/vector_atlas/va_full_data.csv,
-#   data/irmapper/vgsc_species.csv, data/irmapper/vgsc_complex.csv
+#   data/irmapper/vgsc_species.csv, data/irmapper/vgsc_complex.csv,
+#   data/ir_cube/raster_mask.tif
 # Output: data/kdr_samples.csv
 
 source("R/packages.R")
@@ -45,6 +51,40 @@ from_genotypes <- function(counts) {
   n[n == 0] <- NA
   data.frame(n_genotyped = n,
              from_counts = drop(counts %*% genotypes$kdr_alleles) / (2 * n))
+}
+
+# the collection class of each collection method, as the two sources record
+# them (lower case): "unknown" for "?", NA if not in these classes
+method_class <- function(method) {
+  dplyr::case_when(
+    method %in% "?" ~ "unknown",
+    grepl("larva", method) ~ "larvae",
+    grepl("^hri$|house resting|exit trap|winexit|veranda", method) ~
+      "house resting or exit trap",
+    grepl("^ro\\b", method) ~ "resting outdoors",
+    # host-seeking: human landing catches, human-baited nets, light traps and
+    # tent traps (IR Mapper's, the human-baited Ifakara tent trap)
+    grepl("^hlc|^hbn|man biting|human baited|light trap|cdc-lt|tent trap",
+          method) ~ "human landing or light trap"
+  )
+}
+
+# how the mosquitoes of each sample were collected, from a source's
+# collection method columns (one row per sample): the class of its methods,
+# "pooled" if they fall in more than one class (mosquitoes collected in
+# different ways, or perhaps so where one method is "?"), or "unknown" if no
+# method is recorded or it is "?". A method in none of the classes counts as
+# a class of its own, NA if it is the sample's only method
+collection_class <- function(methods) {
+  methods <- tolower(trimws(as.matrix(methods)))
+  methods[methods %in% ""] <- NA
+  classes <- matrix(method_class(methods), nrow = nrow(methods))
+  vapply(seq_len(nrow(methods)), function(i) {
+    found <- unique(classes[i, !is.na(methods[i, ])])
+    if (length(found) > 1) "pooled"
+    else if (length(found) == 1) found
+    else "unknown"
+  }, character(1))
 }
 
 # ---- Vector Atlas ----
@@ -79,7 +119,10 @@ va_samples <- va |>
       dplyr::coalesce(vgsc995f_percent, 0) +
         dplyr::coalesce(vgsc995s_percent, 0),
       kdr_percent),
-    n_tested = dplyr::coalesce(n_genotyped, vgsc_number_of_mosquitoes_tested)
+    n_tested = dplyr::coalesce(n_genotyped, vgsc_number_of_mosquitoes_tested),
+    collection = collection_class(
+      dplyr::pick(dplyr::all_of(paste0("sampling_occurrence_", 1:4)))
+    )
   )
 
 # ---- IR Mapper analysis-ready data ----
@@ -111,7 +154,10 @@ ir_mapper_samples <- function(records) {
         !is.na(`L1014F (%)`) | !is.na(`L1014S (%)`),
         dplyr::coalesce(`L1014F (%)`, 0) + dplyr::coalesce(`L1014S (%)`, 0),
         NA_real_),
-      n_tested = dplyr::coalesce(n_genotyped, `No. mosquitoes tested`)
+      n_tested = dplyr::coalesce(n_genotyped, `No. mosquitoes tested`),
+      collection = collection_class(
+        dplyr::pick(dplyr::all_of(paste("Capture method", 1:4)))
+      )
     )
 }
 
@@ -352,11 +398,45 @@ kdr_samples <- kdr_samples |>
     round(n_tested)
   )) |>
   dplyr::select(source, record_id, citation, paper, latitude, longitude,
-                year_start, year_end, species, n_tested, kdr_frequency)
+                year_start, year_end, species, n_tested, kdr_frequency,
+                collection)
+
+# samples of An. arabiensis are left out, because its kdr effect differs from
+# that of An. gambiae and An. coluzzii. They are kept until here because
+# finding copies (step 1) and inferring missing numbers of mosquitoes use them
+kdr_samples <- drop_records(kdr_samples,
+                            grepl("arabiensis", kdr_samples$species),
+                            "An. arabiensis")
+
+# ---- pixel, species group and year ----
+
+# species group of each sample, from the species labels of the two sources:
+# An. coluzzii is the M form and An. gambiae the S form
+species_group_of <- function(species) {
+  dplyr::case_when(
+    grepl("coluzzii/gambiae|s form_m form", species) ~ "coluzzii and gambiae",
+    grepl("coluzzii|m form", species) ~ "coluzzii",
+    grepl("gambiae_s form|anopheles gambiae", species) ~ "gambiae",
+    .default = sub("anopheles ", "", species)
+  )
+}
+
+# each sample's pixel (pixel_id_at(), as for bioassays). The collection year
+# is the middle of the sample's collection years, rounded, and a study-year
+# is a paper's samples of one species group in one collection year
+kdr_samples <- kdr_samples |>
+  dplyr::mutate(
+    pixel_id = pixel_id_at(longitude, latitude),
+    species_group = species_group_of(species),
+    collection_year = round((year_start + year_end) / 2),
+    study_year = paste(species_group, paper, collection_year)
+  )
 
 stopifnot(
   !anyDuplicated(kdr_samples$record_id),
-  all(kdr_samples$kdr_frequency >= 0)
+  all(kdr_samples$kdr_frequency >= 0),
+  !anyNA(kdr_samples$collection),
+  !anyNA(kdr_samples$pixel_id)
 )
 
 write.csv(kdr_samples, "data/kdr_samples.csv", row.names = FALSE)

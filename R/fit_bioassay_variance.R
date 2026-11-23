@@ -98,9 +98,8 @@ bioassays <- selected |>
 
 # ---- fit ----
 
-pixel_xy <- terra::xyFromCell(terra::rast("data/ir_cube/raster_mask.tif"),
-                              bioassays$pixel_id)
-built <- build_variance_model(bioassays, pixel_xy, taper_km)
+built <- build_variance_model(bioassays, pixel_centres(bioassays$pixel_id),
+                              taper_km)
 draws <- greta::mcmc(built$model, sampler = sampler, n_samples = n_samples,
                      warmup = warmup, chains = chains, verbose = FALSE)
 

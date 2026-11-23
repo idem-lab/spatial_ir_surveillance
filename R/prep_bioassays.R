@@ -10,6 +10,7 @@
 # Output: data/bioassays.RDS
 
 source("R/packages.R")
+source("R/functions.R")
 
 # WHO discriminating concentrations (%) of the pyrethroids ir_cube models.
 # These are also the most common concentration of each in the data, which is
@@ -24,23 +25,18 @@ discriminating_concentrations <- c(
 # ir_cube drops bioassays before this year
 baseline_year <- 1995
 
-mask <- terra::rast("data/ir_cube/raster_mask.tif")
-
 bioassays <- readRDS("data/ir_cube/all_gambiae_complex_data.RDS") |>
   dplyr::filter(
     insecticide_type %in% names(discriminating_concentrations),
     concentration == discriminating_concentrations[insecticide_type],
     year >= baseline_year,
     # a handful of records of minor members of the complex
-    !species %in% c("Anopheles merus", "Anopheles quadriannulatus")
+    !species %in% c("Anopheles merus", "Anopheles quadriannulatus"),
+    # An. arabiensis, whose kdr effect differs from that of An. gambiae and
+    # An. coluzzii
+    !grepl("arabiensis", species)
   ) |>
-  dplyr::mutate(
-    pixel_id = terra::cellFromXY(mask, cbind(longitude, latitude))
-  ) |>
-  # drop records outside the mask, as ir_cube does
-  dplyr::filter(
-    !is.na(terra::extract(mask, pixel_id)[, 1])
-  )
+  dplyr::mutate(pixel_id = pixel_id_at(longitude, latitude))
 
 # ISO3 codes for the countries in the data (ir_cube renames a few)
 country_iso3 <- geodata::country_codes() |>

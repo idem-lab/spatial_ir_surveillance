@@ -9,13 +9,11 @@
 #   - kdr samples from the same pixel and year as the bioassays, which
 #     inform f
 # There is no time trend: changes over time in survival without kdr are part
-# of the variation between pixel-years. Bioassays and kdr samples of
-# An. arabiensis are left out, because its kdr effect differs from that of
-# An. gambiae and An. coluzzii.
+# of the variation between pixel-years.
 #
-# Inputs: data/ir_cube/raster_mask.tif and
-#   data/irmapper/vgsc_survivors_dead.csv (R/get_data.R), data/bioassays.RDS
-#   (R/prep_bioassays.R), data/kdr_samples.csv (R/prep_kdr_samples.R)
+# Inputs: data/irmapper/vgsc_survivors_dead.csv (R/get_data.R),
+#   data/bioassays.RDS (R/prep_bioassays.R), data/kdr_samples.csv
+#   (R/prep_kdr_samples.R)
 # Outputs: output/kdr_predictor_estimates.csv (posterior summaries),
 #   output/kdr_predictor_checks.csv and figures/kdr_predictor_checks.png
 #   (posterior predictive checks),
@@ -44,12 +42,11 @@ excluded_kdr_paper <- "10.1186/14752875983"
 
 bioassays <- select_bioassays(readRDS("data/bioassays.RDS"))
 kdr_samples <- read.csv("data/kdr_samples.csv") |>
-  dplyr::filter(!grepl("arabiensis", species), paper != excluded_kdr_paper)
+  dplyr::filter(paper != excluded_kdr_paper)
 
 # kdr samples from the same pixel and year as bioassays: one row per
 # pixel-year and sample
-links <- find_same_pixel_samples(bioassays, kdr_samples,
-                                 terra::rast("data/ir_cube/raster_mask.tif"))
+links <- find_same_pixel_samples(bioassays, kdr_samples)
 
 selected <- select_kdr_sampled(bioassays, links) |>
   dplyr::select(record_id, selection, pixel_year, insecticide_type,
